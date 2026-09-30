@@ -15,14 +15,18 @@ ua_exp_result *ua_exp_add(ua_exp_list *l, const char *id, const char *title, con
 {
     if (l->n == l->cap) {
         int cap = l->cap ? l->cap * 2 : 16;
-        ua_exp_result *r = realloc(l->r, (size_t)cap * sizeof *r);
-        if (!r)
+        ua_exp_result **v = realloc(l->r, (size_t)cap * sizeof *v);
+        if (!v)
             abort();
-        l->r = r;
+        l->r = v;
         l->cap = cap;
     }
-    ua_exp_result *r = &l->r[l->n++];
-    memset(r, 0, sizeof *r);
+    /* One allocation per result: growing the index above must not move the
+     * results themselves, because callers hold pointers to earlier ones. */
+    ua_exp_result *r = calloc(1, sizeof *r);
+    if (!r)
+        abort();
+    l->r[l->n++] = r;
     snprintf(r->id, sizeof r->id, "%s", id);
     snprintf(r->title, sizeof r->title, "%s", title);
     snprintf(r->unit, sizeof r->unit, "%s", unit);
@@ -52,6 +56,8 @@ void ua_exp_note(ua_exp_result *r, const char *fmt, ...)
 
 void ua_exp_list_free(ua_exp_list *l)
 {
+    for (int i = 0; i < l->n; i++)
+        free(l->r[i]);
     free(l->r);
     memset(l, 0, sizeof *l);
 }

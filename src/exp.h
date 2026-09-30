@@ -31,19 +31,23 @@ typedef struct {
     double lo, hi;       /* bracket the value was read from, NaN if n/a         */
     char confidence[12]; /* "high", "medium" or "low"                           */
     char note[400];      /* how to read the number, caveats                     */
-    char xlabel[40];
-    char ylabel[40];
+    char xlabel[64];
+    char ylabel[64];
     int n;               /* points on the curve                                 */
     double x[UA_EXP_MAX_POINTS];
     double y[UA_EXP_MAX_POINTS];
 } ua_exp_result;
 
+/* Results are allocated one by one, so a pointer returned by ua_exp_add()
+ * stays valid however many results are added after it (experiments keep
+ * such pointers while they add further results). */
 typedef struct {
-    ua_exp_result *r;
+    ua_exp_result **r;
     int n, cap;
 } ua_exp_list;
 
-/* Append a result (zero-initialised apart from the given fields). */
+/* Append a result (zero-initialised apart from the given fields).  The
+ * pointer remains valid until ua_exp_list_free(). */
 ua_exp_result *ua_exp_add(ua_exp_list *l, const char *id, const char *title, const char *unit,
                           int level);
 void ua_exp_point(ua_exp_result *r, double x, double y);
@@ -116,7 +120,8 @@ uint8_t *ua_big_buffer(void);
  * Returns the first index (UINT64_MAX on failure); *halfway, if not NULL,
  * receives the index half a cycle later, the start of an independent walk.
  */
-#define UA_REG_BIG 26 /* holds the big buffer's base in chase loops */
+#define UA_REG_BIG 26  /* holds the big buffer's base in chase loops          */
+#define UA_REG_BIG2 25 /* base of a second, independent chase (exp_window.c) */
 uint64_t ua_build_chase(uint8_t *base, size_t nodes, size_t stride, size_t off_step,
                         size_t off_mod, uint64_t seed, uint64_t *halfway);
 

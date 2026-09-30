@@ -26,7 +26,13 @@ _Static_assert(offsetof(ua_regs, out_v) == 1024, "tramp.S REGS_OUT_V");
 #define UA_REG_MEM 27 /* scratch memory base */
 #define UA_REG_CNT 28 /* loop counter        */
 
+/* Run `code` with the register state in `regs` for `iters` loop iterations
+ * and store the final state in regs->out_*.  With zero iterations nothing
+ * runs and out_* is a copy of the input (the loop counter is tested after
+ * the decrement, so the generated code itself needs iters >= 1). */
 uint64_t ua_tramp(const void *code, ua_regs *regs, uint64_t iters);
+/* The trampoline itself (tramp.S); iters must be >= 1. */
+uint64_t ua_tramp_enter(const void *code, ua_regs *regs, uint64_t iters);
 
 /* Arena ------------------------------------------------------------------ */
 
@@ -56,7 +62,6 @@ const void *ua_jit_end(void);
 
 /* Loop builder ------------------------------------------------------------
  *
- *     cbz  x28, done          (zero iterations: do nothing)
  *     [init]
  *     .p2align 6
  *  top:
@@ -64,7 +69,6 @@ const void *ua_jit_end(void);
  *     sub  x28, x28, #1
  *     cbnz x28, top
  *     [fini]
- *  done:
  *     ret
  *
  * Returns the entry point or NULL (arena overflow / loop too long for the

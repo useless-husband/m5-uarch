@@ -115,14 +115,26 @@ static void emit_window(void *p)
     for (unsigned j = 0; j < c->f; j++)
         c->fill(j);
     for (unsigned d = 0; d < c->depth; d++)
-        ua_jit_put(c->control ? a64_ldr(2, UA_REG_MEM, 256) : a64_ldr_idx3(2, UA_REG_BIG, 2));
+        ua_jit_put(c->control ? a64_ldr(2, UA_REG_MEM, 256) : a64_ldr_idx3(2, UA_REG_BIG2, 2));
     for (unsigned j = 0; j < c->f; j++)
         c->fill(c->f + j);
 }
 
+/*
+ * The two chases walk two separate random cycles, one in each half of the
+ * big buffer (128 MiB each, far beyond any cache).  A first version put
+ * both on one cycle, half a lap apart; chain A advances in both the test
+ * and the control loop while chain B advances only in the test loop, so A
+ * gained on B and lapped it every few searches.  Around each lap one chain
+ * walked lines the other had just brought into the L2, its "misses" became
+ * hits, and the ratio was wrong in a way no per-run filter can see.
+ */
+#define HALF_BYTES (UA_BIG_BYTES / 2)
+#define HALF_NODES (HALF_BYTES / NODE_STRIDE)
+
 static uint64_t g_start_a, g_start_b;
 
-/* (Re)build the chase.  Other experiments reuse the big buffer, so this is
+/* (Re)build the chases.  Other experiments reuse the big buffer, so this is
  * done at the start of every window run rather than once. */
 static int g_chase_ok;
 
@@ -131,9 +143,11 @@ static int chase_build(void)
     uint8_t *buf = ua_big_buffer();
     g_chase_ok = 0;
     if (buf) {
-        g_start_a = ua_build_chase(buf, UA_BIG_BYTES / NODE_STRIDE, NODE_STRIDE, 0, 0,
-                                   0x243f6a8885a308d3ull, &g_start_b);
-        g_chase_ok = g_start_a != UINT64_MAX;
+        g_start_a = ua_build_chase(buf, HALF_NODES, NODE_STRIDE, 0, 0, 0x243f6a8885a308d3ull,
+                                   NULL);
+        g_start_b = ua_build_chase(buf + HALF_BYTES, HALF_NODES, NODE_STRIDE, 0, 0,
+                                   0x13198a2e03707344ull, NULL);
+        g_chase_ok = g_start_a != UINT64_MAX && g_start_b != UINT64_MAX;
     }
     return g_chase_ok;
 }
@@ -156,6 +170,7 @@ static double ratio_once(fill_fn fill, unsigned f, unsigned depth, int level)
     ua_regs ra, rb;
     ua_regs_default(&ra);
     ra.x[UA_REG_BIG] = (uint64_t)(uintptr_t)ua_big_buffer();
+    ra.x[UA_REG_BIG2] = (uint64_t)(uintptr_t)ua_big_buffer() + HALF_BYTES;
     ra.x[1] = g_start_a;
     ra.x[2] = g_start_b;
     ra.x[20] = 3; /* non-zero: the cbz filler is never taken */
@@ -164,7 +179,8 @@ static double ratio_once(fill_fn fill, unsigned f, unsigned depth, int level)
     const void *code_a = build(&test, 0);
     /* Both loops keep walking from where the last run stopped: restarting
      * would re-read lines that are now cached.  Chain A is advanced by the
-     * two loops in turn, chain B only by the test loop. */
+     * two loops in turn, chain B only by the test loop; they never meet
+     * because each has its own cycle. */
     ua_pair p = ua_exp_pair(code_a, &ra, 1u << 2, code_b, &rb, 0, 1u << 1, 600 / depth, level, 5,
                             24);
     g_start_a = ra.x[1];

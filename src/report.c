@@ -229,7 +229,7 @@ int ua_report_write_json(const ua_report *r, FILE *f)
         ua_json_key(j, ua_level_label(l, r->n_levels));
         ua_json_begin_array(j);
         for (int i = 0; i < r->exps[l].n; i++)
-            write_exp(j, &r->exps[l].r[i]);
+            write_exp(j, r->exps[l].r[i]);
         ua_json_end_array(j);
     }
     ua_json_end_object(j);

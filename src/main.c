@@ -259,7 +259,7 @@ static void run_experiments(ua_report *rep, const options *opt, int level)
         if (!opt->quiet) {
             printf("## %s: %s\n", ua_experiments[e].name, ua_experiments[e].summary);
             for (int i = before; i < rep->exps[level].n; i++)
-                ua_report_print_exp(&rep->exps[level].r[i], stdout);
+                ua_report_print_exp(rep->exps[level].r[i], stdout);
             fflush(stdout);
         }
     }

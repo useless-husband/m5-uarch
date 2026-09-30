@@ -276,6 +276,35 @@ static void test_mix_plan(void)
     CHECK(plan[0] == 0 && plan[1] == 1);
 }
 
+/* Result records must not move when the list grows: experiments keep the
+ * pointer of an early result while they add later ones (regression: the
+ * list used to realloc the records themselves, so a run of, for instance,
+ * `structure -e width,branch,tlb` wrote through a freed pointer). */
+static void test_exp_list_stable(void)
+{
+    ua_exp_list l = {NULL, 0, 0};
+    ua_exp_result *first = ua_exp_add(&l, "first", "The first result", "cycles", 0);
+    ua_exp_result *kept[40];
+    for (int i = 0; i < 40; i++) {
+        char id[16];
+        snprintf(id, sizeof id, "r%d", i);
+        kept[i] = ua_exp_add(&l, id, "Another result", "entries", 1);
+        ua_exp_point(kept[i], i, 2.0 * i);
+    }
+    CHECK(l.n == 41);
+    CHECK(l.r[0] == first);
+    CHECK(strcmp(first->id, "first") == 0);
+    CHECK(first->status == UA_EXP_FAILED && isnan(first->value));
+    ua_exp_point(first, 1, 1);
+    CHECK(first->n == 1);
+    for (int i = 0; i < 40; i++) {
+        CHECK(l.r[i + 1] == kept[i]);
+        CHECK(kept[i]->n == 1 && kept[i]->x[0] == i);
+    }
+    ua_exp_list_free(&l);
+    CHECK(l.r == NULL && l.n == 0 && l.cap == 0);
+}
+
 /* Initialisers that would write outside the scratch buffer are ignored. */
 static void test_init_bounds(void)
 {
@@ -309,6 +338,7 @@ int main(void)
     test_memory_and_chase();
     test_limits_and_faults();
     test_mix_plan();
+    test_exp_list_stable();
     test_init_bounds();
     test_table();
     return test_finish("test_jit");

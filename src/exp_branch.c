@@ -48,6 +48,9 @@ static double loop_cycles(uint8_t *array, int level, ua_meas *out)
     o.n1 = ITERS;
     o.carry = 1u << 1 | 1u << 7; /* keep reading forward: never the same bytes twice */
     o.max_runs = 48;             /* 48 * 3 * ITERS bytes + warm-up stays inside the array */
+    /* Either side of the branch retires five instructions, plus the loop's
+     * two: checked on every run, whichever way the bits fall. */
+    o.expect_ins = 7;
     ua_meas m = ua_exp_measure(emit_loop, NULL, &regs, level, 0, &o);
     if (out)
         *out = m;

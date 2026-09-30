@@ -1,7 +1,9 @@
 /*
  * tramp.S - the only hand-written machine code that surrounds a measured loop.
  *
- *   uint64_t ua_tramp(const void *code, ua_regs *regs, uint64_t iters);
+ *   uint64_t ua_tramp_enter(const void *code, ua_regs *regs, uint64_t iters);
+ *
+ * (ua_tramp() in jit.c calls this; it handles iters == 0 itself.)
  *
  * Loads every general-purpose and vector register and NZCV from `regs`,
  * calls `code`, then stores the register state back into `regs->out_*` so
@@ -25,9 +27,9 @@
 #define REGS_OUT_V  1024
 
     .text
-    .globl _ua_tramp
+    .globl _ua_tramp_enter
     .p2align 4
-_ua_tramp:
+_ua_tramp_enter:
     stp     x29, x30, [sp, #-160]!
     stp     x19, x20, [sp, #16]
     stp     x21, x22, [sp, #32]
