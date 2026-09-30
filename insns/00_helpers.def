@@ -1,0 +1,6 @@
+# Round trips used to attribute a share of a latency chain to the helper
+# instruction that closes it (see docs/DESIGN.md, "Latency chains").
+group Chain helpers
+rt_cmp_csinc  | cmp {RW0:x}, {R1:x} ; csinc {RW0:x}, {R1:x}, {R2:x}, ne | notp chain=RW0 note="integer -> flags -> integer"
+rt_fmov_x_d   | fmov {W0:d}, {RW1:x} ; fmov {RW1:x}, {W0:d} | notp chain=RW1 note="integer -> FP -> integer"
+rt_fcmp_fcsel | fcmp {RW0:d}, {R1:d} ; fcsel {RW0:d}, {R1:d}, {R2:d}, ne | notp chain=RW0 note="FP -> flags -> FP"

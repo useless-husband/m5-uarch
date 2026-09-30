@@ -1,0 +1,26 @@
+group Integer / arithmetic
+for s in x w
+add_$s_reg      | add {W0:$s}, {R0:$s}, {R1:$s}
+add_$s_imm      | add {W0:$s}, {R0:$s}, #1
+adds_$s_reg     | adds {W0:$s}, {R0:$s}, {R1:$s} | flags=w
+adc_$s          | adc {W0:$s}, {R0:$s}, {R1:$s} | flags=r
+cmp_$s_reg      | cmp {R0:$s}, {R1:$s} | flags=w
+csel_$s         | csel {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
+mul_$s          | mul {W0:$s}, {R0:$s}, {R1:$s}
+madd_$s         | madd {W0:$s}, {R0:$s}, {R1:$s}, {R2:$s}
+end
+mov_x_reg       | mov {W0:x}, {R0:x}
+movk_x          | movk {RW0:x}, #0x1234, lsl #16
+udiv_x          | udiv {W0:x}, {R0:x}, {R1:x} | init=R0:0x7fffffffffffffff,R1:1 chain=R0
+ldr_x_base      | ldr {W0:x}, [{A0}] | cell=A0:0
+ldr_x_idx3      | ldr {W0:x}, [{A0}, {R1:x}, lsl #3] | init=R1:8 cell=A0:64,R1:0:8
+ldrb_idx        | ldrb {W0:w}, [{A0}, {R1:x}] | init=R1:8 cell=R1:0:1:1
+ldr_x_post      | ldr {W0:x}, [{RW1:x}], #8 || ldr {W0:x}, [{RW1:x}], #-8 | ptr=RW1
+str_x           | str {R0:x}, [{A0}, #{off:8}]
+stlf_x          | str {R0:x}, [{A0}] ; ldr {W0:x}, [{A0}]
+stlf_x_inc      | str {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp
+fadd_d          | fadd {W0:d}, {R0:d}, {R1:d}
+fmla_4s         | fmla {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s | fp=s
+scvtf_d_x       | scvtf {W0:d}, {R0:x}
+fcvtzs_x_d      | fcvtzs {W0:x}, {R0:d}
+fcmp_d          | fcmp {R0:d}, {R1:d} | flags=w
