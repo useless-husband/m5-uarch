@@ -77,6 +77,7 @@ int main(int argc, char **argv)
         emit(a64_sub_imm(d, n, imm12), "sub x%u, x%u, #%u", d, n, imm12);
         emit(a64_subs_imm(d, n, imm12), "subs x%u, x%u, #%u", d, n, imm12);
         emit(a64_add(d, n, m), "add x%u, x%u, x%u", d, n, m);
+        emit(a64_add_w(d, n, m), "add w%u, w%u, w%u", d, n, m);
         emit(a64_sub(d, n, m), "sub x%u, x%u, x%u", d, n, m);
         emit(a64_adds(d, n, m), "adds x%u, x%u, x%u", d, n, m);
         emit(a64_subs(d, n, m), "subs x%u, x%u, x%u", d, n, m);
@@ -119,6 +120,8 @@ int main(int argc, char **argv)
         emit(a64_br(n), "br x%u", n);
         emit(a64_blr(n), "blr x%u", n);
         emit(a64_adr(d, b19), "adr x%u, #%d", d, b19 * 4);
+        emit(a64_adrp0(d), "adrp x%u, #0", d);
+        emit(a64_adds(d, n, m), "adds x%u, x%u, x%u", d, n, m);
         emit(a64_fadd_d(vd, vn, vm), "fadd d%u, d%u, d%u", vd, vn, vm);
         emit(a64_fmul_d(vd, vn, vm), "fmul d%u, d%u, d%u", vd, vn, vm);
         emit(a64_fdiv_d(vd, vn, vm), "fdiv d%u, d%u, d%u", vd, vn, vm);

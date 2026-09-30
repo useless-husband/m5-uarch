@@ -60,6 +60,11 @@ static inline uint32_t a64_add(unsigned rd, unsigned rn, unsigned rm)
 {
     return 0x8b000000u | (A64_R(rm) << 16) | (A64_R(rn) << 5) | A64_R(rd);
 }
+/* add wd, wn, wm */
+static inline uint32_t a64_add_w(unsigned rd, unsigned rn, unsigned rm)
+{
+    return 0x0b000000u | (A64_R(rm) << 16) | (A64_R(rn) << 5) | A64_R(rd);
+}
 static inline uint32_t a64_sub(unsigned rd, unsigned rn, unsigned rm)
 {
     return 0xcb000000u | (A64_R(rm) << 16) | (A64_R(rn) << 5) | A64_R(rd);
@@ -208,6 +213,10 @@ static inline uint32_t a64_adr(unsigned rd, int32_t off)
     uint32_t bytes = (uint32_t)off * 4u;
     return 0x10000000u | ((bytes & 3u) << 29) | (((bytes >> 2) & 0x7ffffu) << 5) | A64_R(rd);
 }
+
+/* adrp xd, <this page> */
+static inline uint32_t a64_adrp0(unsigned rd) { return 0x90000000u | A64_R(rd); }
+/* ands xd, xn, xm is a64_ands(); tst is ands with xd = xzr. */
 
 /* ---- scalar floating point (double) ---- */
 static inline uint32_t a64_fadd_d(unsigned rd, unsigned rn, unsigned rm)

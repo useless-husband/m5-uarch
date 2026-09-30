@@ -37,6 +37,7 @@ static void f_nop(unsigned j)
     ua_jit_put(a64_nop());
 }
 static void f_int(unsigned j) { ua_jit_put(a64_add(3 + j % 8, 20, 21)); }
+static void f_int32(unsigned j) { ua_jit_put(a64_add_w(3 + j % 8, 20, 21)); }
 static void f_fp(unsigned j) { ua_jit_put(a64_fadd_d(j % 8, 20, 21)); }
 static void f_flags(unsigned j)
 {
@@ -345,6 +346,10 @@ void ua_exp_window(int level, ua_exp_list *out)
                     "Each filler writes an integer register, so each holds a fresh physical "
                     "register until it retires. Add the 31 architectural registers for the "
                     "file's total size.", NULL);
+    window(out, level, "prf_int32", "32-bit integer register renames in flight", f_int32, 2, 2400,
+           1,
+           "Fillers write w registers. If this is about twice the 64-bit figure, two 32-bit "
+           "values share one physical register.", NULL);
     cap[1] = window(out, level, "prf_fp", "FP/SIMD register renames in flight", f_fp, 2, 1800, 0,
                     "Each filler writes a vector register. Add the 32 architectural registers "
                     "for the file's total size.", NULL);
