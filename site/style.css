@@ -1,0 +1,49 @@
+:root {
+  --bg: #ffffff; --fg: #1b1f23; --muted: #5b6570; --line: #d8dde3; --head: #f3f5f7;
+  --accent: #0b5cad; --warn: #8a5300; --open: #f7f9fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a; --fg: #e3e7eb; --muted: #98a2ad; --line: #2c333a; --head: #1c2126;
+    --accent: #6cb0f5; --warn: #e0a640; --open: #191d21;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 20px 48px; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 1180px;
+}
+h1 { font-size: 22px; margin: 28px 0 6px; }
+h2 { font-size: 17px; margin: 34px 0 10px; }
+header p { margin: 6px 0; max-width: 78ch; }
+.meta, .controls, footer { color: var(--muted); }
+ul { padding-left: 20px; max-width: 86ch; }
+li { margin: 4px 0; }
+a { color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 10px 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { background: var(--head); position: sticky; top: 0; font-weight: 600; white-space: nowrap; }
+.num { text-align: right; white-space: nowrap; }
+code, .asm { font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+tbody tr.row { cursor: pointer; }
+tbody tr.row:hover { background: var(--open); }
+tr.detail td { background: var(--open); color: var(--fg); padding: 10px 14px 14px 22px; }
+tr.detail dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; }
+tr.detail dt { color: var(--muted); }
+tr.detail dd { margin: 0; }
+.grouphead td { background: var(--head); font-weight: 600; }
+.dim { color: var(--muted); }
+.flag { color: var(--warn); }
+.range { color: var(--muted); font-size: 12px; }
+input[type=search], select {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 4px; padding: 5px 8px;
+}
+input[type=search] { width: min(440px, 100%); }
+svg.curve { display: block; margin-top: 8px; max-width: 100%; }
+svg.curve path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+svg.curve circle { fill: var(--accent); }
+svg.curve line { stroke: var(--line); }
+svg.curve text { fill: var(--muted); font: 11px -apple-system, "Segoe UI", sans-serif; }
+footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 760px) { th, td { padding: 4px 6px; } body { padding: 0 10px 32px; } }

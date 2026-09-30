@@ -113,6 +113,11 @@ static int cmd_info(const ua_sysinfo *si)
                (unsigned long long)(s->l1i >> 10), (unsigned long long)(s->l1d >> 10),
                (unsigned long long)(s->l2 >> 10), s->cpus_per_l2);
     }
+    int pac = ua_probe_pauth();
+    printf("pauth       %s\n", pac == 1 ? "keys active: pac*/aut* sign and authenticate"
+                           : pac == 0 ? "keys inactive in this process: pac*/aut* pass their "
+                                        "operand through"
+                                      : "unknown");
     if (ua_counters_backend() == UA_CTR_NONE) {
         printf("\nNo cycle counter is available to an unprivileged process here, so nothing "
                "can be measured.\n");

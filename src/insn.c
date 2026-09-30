@@ -301,3 +301,23 @@ void ua_insn_run(const ua_insn *in, int level, const ua_helpers *h, ua_insn_resu
         }
     }
 }
+
+int ua_probe_pauth(void)
+{
+    const ua_insn *in = ua_insn_find("pacia");
+    if (!in || in->n_chains < 1)
+        return -1;
+    const ua_chain *ch = &in->chains[0];
+    ua_regs regs;
+    ua_regs_default(&regs);
+    ua_init_apply(&regs, ch->init, ch->n_init);
+    /* One signing step, outside any loop.  The chain register is x0. */
+    ua_jit_begin();
+    ua_jit_put_n(ua_code + ch->off, ch->n);
+    ua_jit_put(0xd65f03c0u); /* ret */
+    const void *code = ua_jit_end();
+    regs.x[0] = 0x0000000123456780ull;
+    if (!code || ua_run_guarded(code, &regs, 1) != 0)
+        return -1;
+    return regs.out_x[0] != regs.x[0];
+}

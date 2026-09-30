@@ -24,6 +24,7 @@ typedef struct {
     ua_insn_result *insn[UA_SYS_MAX_LEVELS];
     unsigned char *insn_done[UA_SYS_MAX_LEVELS];
     ua_exp_list exps[UA_SYS_MAX_LEVELS];
+    int pauth_active;              /* ua_probe_pauth() */
     double load_avg[3];
     char started[32];              /* ISO 8601, UTC */
     double seconds;

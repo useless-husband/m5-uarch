@@ -20,6 +20,7 @@ int ua_report_init(ua_report *r)
         if (!r->insn[l] || !r->insn_done[l])
             return -1;
     }
+    r->pauth_active = ua_probe_pauth();
     getloadavg(r->load_avg, 3);
     time_t now = time(NULL);
     struct tm tm;
@@ -144,6 +145,8 @@ int ua_report_write_json(const ua_report *r, FILE *f)
     ua_json_kuint(j, "page_size", r->sys.page_size);
     ua_json_kuint(j, "memory_bytes", r->sys.memsize);
     ua_json_kbool(j, "virtual_machine", r->sys.is_vm);
+    if (r->pauth_active >= 0)
+        ua_json_kbool(j, "pauth_keys_active", r->pauth_active);
     ua_json_key(j, "levels");
     ua_json_begin_array(j);
     for (int l = 0; l < r->n_levels; l++) {

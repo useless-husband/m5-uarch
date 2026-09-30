@@ -55,5 +55,26 @@ $(BUILD)/insns_gen.o: $(BUILD)/insns_gen.c $(HDRS)
 $(BUILD)/uarch: $(APP_OBJ) $(LIB_OBJ) $(GEN_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
+# ---- measuring and publishing -------------------------------------------
+# One command for any Apple Silicon Mac: `make measure`.
+CHIP ?= $(shell sysctl -n machdep.cpu.brand_string | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$$//')
+RUNS ?= 3
+RESULT := results/$(CHIP)/$(CHIP).json
+
+measure: $(BUILD)/uarch
+	@$(BUILD)/uarch selftest
+	@mkdir -p $(BUILD)/runs && rm -f $(BUILD)/runs/run-*.json
+	@for i in $$(seq 1 $(RUNS)); do \
+	    echo "run $$i of $(RUNS) ..."; \
+	    $(BUILD)/uarch all -q -o $(BUILD)/runs/run-$$i.json || exit $$?; \
+	done
+	$(PYTHON) tools/uarch_results.py merge $(BUILD)/runs/run-*.json -o $(RESULT)
+	$(PYTHON) tools/uarch_results.py check $(RESULT)
+	$(PYTHON) tools/uarch_results.py csv $(RESULT) -o results/$(CHIP)
+	@echo "Results are in results/$(CHIP)/. See CONTRIBUTING.md for how to share them."
+
+site:
+	$(PYTHON) tools/uarch_results.py site results/*/*.json -o site --reference reference
+
 clean:
 	rm -rf $(BUILD)

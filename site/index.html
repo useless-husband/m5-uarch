@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>m5-uarch: measured Apple M5 microarchitecture data</title>
+<meta name="description" content="Instruction latency and throughput tables and core structure sizes for Apple M5 performance and efficiency cores, measured without root.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>m5-uarch</h1>
+  <p>Instruction latency and throughput, and core structure sizes, measured on Apple Silicon
+  without root. Every number comes from the kernel's per-thread cycle and instruction counters;
+  nothing here is taken from documentation.</p>
+  <p class="meta"><label>Chip <select id="chip"></select></label> <span id="machine"></span></p>
+</header>
+
+<main>
+<section>
+  <h2>How to read this page</h2>
+  <ul>
+    <li><b>Latency</b> is in cycles, from one input operand to the output, measured in a
+      dependency chain. When inputs differ, the cell shows the range; open the row for each one.
+      A value near 0 means the instruction was removed at rename.</li>
+    <li><b>Throughput</b> is how many independent instances complete per cycle in a long stream
+      of that one instruction.</li>
+    <li>Values are the median of several runs. Non-integer latencies are real averages, not
+      rounding noise: some operations alternate between two latencies.</li>
+    <li><b>rt</b> marks a round trip: the chain had to return to its starting register file
+      through a second instruction (named in the row) whose share cannot be separated by timing.</li>
+    <li>Without root there are no event counters. Everything except cycles and retired
+      instructions is inferred from timing experiments; open a structure row to see the curve it
+      was read from.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Core structure</h2>
+  <table id="structure">
+    <thead><tr><th>What</th><th class="num">P-core</th><th class="num">E-core</th><th>Unit</th><th id="refhead">Published for other chips</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Instructions</h2>
+  <p class="controls">
+    <input id="q" type="search" placeholder="Search: mnemonic, operands, group or extension" autocomplete="off" spellcheck="false">
+    <select id="group"><option value="">All groups</option></select>
+    <span id="count"></span>
+  </p>
+  <table id="insns">
+    <thead><tr>
+      <th>Instruction</th><th>Ext.</th>
+      <th class="num">P lat.</th><th class="num">P thr.</th>
+      <th class="num">E lat.</th><th class="num">E thr.</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+</main>
+
+<footer>
+  <p>Method, limitations and the measurement tool: see the project README. Data files:
+  <a id="json" href="#">JSON</a>, <a id="csv" href="#">CSV</a>.</p>
+</footer>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

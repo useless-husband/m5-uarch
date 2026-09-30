@@ -151,4 +151,9 @@ void ua_init_apply(ua_regs *regs, const ua_init *init, size_t n);
 
 const ua_insn *ua_insn_find(const char *name);
 
+/* Does pacia change a pointer in this process?  1: yes (keys active),
+ * 0: no (the instruction passes its operand through, as it does in a plain
+ * arm64 process on macOS), -1: could not tell. */
+int ua_probe_pauth(void);
+
 #endif

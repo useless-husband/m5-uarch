@@ -1,0 +1,71 @@
+core,id,title,status,value,run_min,run_max,unit,confidence
+P,width,Pipeline width (sustained NOPs per cycle),ok,9.998,9.997,10.001,per cycle,high
+P,units_mov,"Register moves per cycle (mov x, x)",ok,10.002,9.998,10.003,per cycle,high
+P,units_alu,Integer ALUs (add with immediate),ok,7.918,7.875,7.927,per cycle,high
+P,units_alu_2src,Integer adds with two register sources,ok,6.908,6.907,6.911,per cycle,high
+P,units_alu_same_src,Integer adds that all read one register,ok,3.223,3.218,3.246,per cycle,medium
+P,units_flags,Flag-setting ALUs (cmp with immediate),ok,4.001,4.001,4.001,per cycle,high
+P,units_mul,Integer multipliers,ok,3.001,3.001,3.001,per cycle,high
+P,units_load,Load units (L1 hits),ok,3.003,3.001,3.005,per cycle,high
+P,units_store,Store units,ok,2,2,2.001,per cycle,high
+P,units_fp_add,FP adders (fadd),ok,4.001,4.001,4.001,per cycle,high
+P,units_fp_mul,FP multipliers (fmul),ok,4.001,4.001,4.001,per cycle,high
+P,units_simd_int,SIMD integer units (add v.2d),ok,4.001,4.001,4.003,per cycle,high
+P,units_branch_nt,Not-taken conditional branches per cycle (cbz),ok,3.002,3,3.002,per cycle,high
+P,units_branch_taken,Taken branches per cycle (b to next),ok,2.085,2,2.102,per cycle,medium
+P,rob_nop,Reorder buffer capacity in NOPs,ok,3367,3367,3367,entries,high
+P,prf_int,Integer register renames in flight,ok,396,396,396,entries,high
+P,prf_fp,FP/SIMD register renames in flight,ok,837,835,843,entries,medium
+P,prf_flags,Flag renames in flight,ok,168,167,168,entries,medium
+P,branches,Unresolved-branch capacity,ok,194,194,194,entries,medium
+P,sq,Store queue,ok,137,137,137,entries,high
+P,lq,Load queue,ok,486,486,486,entries,high
+P,rob,Reorder buffer capacity in ordinary instructions,ok,1330,1330,1330,entries,high
+P,mov_after_op,"Latency of mov x, x fed by an add",ok,0.0,0.0,0.0,cycles,high
+P,mov_after_mov,"Latency of mov x, x fed by another mov",ok,0.9,0.899,0.903,cycles,high
+P,mov_self,"Latency of mov x0, x0",ok,0.0,0.0,0.0,cycles,high
+P,add_imm0,"Latency of add x, x, #0",ok,0.0,0.0,0.0,cycles,high
+P,vmov_after_op,"Latency of mov v.16b, v.16b fed by a vector add",ok,0.0,0.0,0.0,cycles,high
+P,vmov_after_mov,"Latency of mov v.16b, v.16b fed by another mov",ok,1.801,1.8,1.802,cycles,high
+P,fmov_after_op,"Latency of fmov d, d fed by a vector add",ok,1.998,1.997,2.001,cycles,high
+P,zero_eor_self,"eor x0, x0, x0 inside a multiply chain",ok,3.999,3.998,3.999,cycles,high
+P,zero_sub_self,"sub x0, x0, x0 inside a multiply chain",ok,4,3.999,4.002,cycles,high
+P,zero_and_zr,"and x0, x0, xzr inside a multiply chain",ok,4.002,4.001,4.002,cycles,high
+P,zero_movz,"mov x0, #0 inside a multiply chain",ok,0.333,0.333,0.333,cycles,high
+P,zero_veor_self,"eor v0, v0, v0 inside an fmul chain",ok,5,4.999,5.001,cycles,high
+P,zero_movi,"movi v0.2d, #0 inside an fmul chain",ok,0.25,0.25,0.25,cycles,high
+E,width,Pipeline width (sustained NOPs per cycle),ok,6,5.999,6.001,per cycle,high
+E,units_mov,"Register moves per cycle (mov x, x)",ok,6.003,6.002,6.004,per cycle,high
+E,units_alu,Integer ALUs (add with immediate),ok,3.999,3.999,4.002,per cycle,high
+E,units_alu_2src,Integer adds with two register sources,ok,4.001,4.001,4.002,per cycle,high
+E,units_alu_same_src,Integer adds that all read one register,ok,4,3.999,4.003,per cycle,high
+E,units_flags,Flag-setting ALUs (cmp with immediate),ok,4.002,3.999,4.002,per cycle,high
+E,units_mul,Integer multipliers,ok,1.001,1.001,1.003,per cycle,high
+E,units_load,Load units (L1 hits),ok,2.003,2.001,2.023,per cycle,high
+E,units_store,Store units,ok,1.001,1,1.001,per cycle,high
+E,units_fp_add,FP adders (fadd),ok,3.002,3.001,3.023,per cycle,high
+E,units_fp_mul,FP multipliers (fmul),ok,3,3,3.002,per cycle,high
+E,units_simd_int,SIMD integer units (add v.2d),ok,3,3,3.008,per cycle,high
+E,units_branch_nt,Not-taken conditional branches per cycle (cbz),ok,2,1.995,2.003,per cycle,high
+E,units_branch_taken,Taken branches per cycle (b to next),ok,1.001,1,1.001,per cycle,high
+E,rob_nop,Reorder buffer capacity in NOPs,ok,1072,1069,1072,entries,medium
+E,prf_int,Integer register renames in flight,ok,185,185,185,entries,high
+E,prf_fp,FP/SIMD register renames in flight,ok,202,202,202,entries,medium
+E,prf_flags,Flag renames in flight,ok,71,71,73,entries,high
+E,branches,Unresolved-branch capacity,ok,73,71,73,entries,medium
+E,sq,Store queue,ok,55,55,55,entries,high
+E,lq,Load queue,ok,65,65,65,entries,high
+E,rob,Reorder buffer capacity in ordinary instructions,ok,447,435,466,entries,medium
+E,mov_after_op,"Latency of mov x, x fed by an add",ok,0.381,0.38,0.382,cycles,high
+E,mov_after_mov,"Latency of mov x, x fed by another mov",ok,0.833,0.833,0.837,cycles,high
+E,mov_self,"Latency of mov x0, x0",ok,0.0,0.0,0.0,cycles,high
+E,add_imm0,"Latency of add x, x, #0",ok,0.382,0.38,0.385,cycles,high
+E,vmov_after_op,"Latency of mov v.16b, v.16b fed by a vector add",ok,0.897,0.893,0.898,cycles,high
+E,vmov_after_mov,"Latency of mov v.16b, v.16b fed by another mov",ok,1.663,1.662,1.667,cycles,high
+E,fmov_after_op,"Latency of fmov d, d fed by a vector add",ok,2,1.999,2.004,cycles,high
+E,zero_eor_self,"eor x0, x0, x0 inside a multiply chain",ok,4.002,4,4.027,cycles,high
+E,zero_sub_self,"sub x0, x0, x0 inside a multiply chain",ok,4.001,4,4.002,cycles,high
+E,zero_and_zr,"and x0, x0, xzr inside a multiply chain",ok,4.003,4,4.007,cycles,high
+E,zero_movz,"mov x0, #0 inside a multiply chain",ok,1,1,1,cycles,high
+E,zero_veor_self,"eor v0, v0, v0 inside an fmul chain",ok,6,5.986,6.011,cycles,high
+E,zero_movi,"movi v0.2d, #0 inside an fmul chain",ok,0.501,0.5,0.502,cycles,high

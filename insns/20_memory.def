@@ -95,8 +95,6 @@ stlf_x_const        | str {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}] | notp note="str
 stlf_w              | str {RW0:w}, [{A0}] ; ldr {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp
 stlf_b              | strb {RW0:w}, [{A0}] ; ldrb {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp
 stlf_x_to_w         | str {RW0:x}, [{A0}] ; ldr {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="narrower load, same address"
-stlf_x_to_w_hi      | str {RW0:x}, [{A0}] ; ldr {RW0:w}, [{A0}, #4] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="narrower load from the upper half"
-stlf_x_to_b3        | str {RW0:x}, [{A0}] ; ldrb {RW0:w}, [{A0}, #3] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="one byte out of the middle"
 stlf_w_to_x_fail    | str {RW0:w}, [{A0}] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="load wider than the store: cannot forward"
 stlf_2w_to_x        | str {RW0:w}, [{A0}] ; str {RW0:w}, [{A0}, #4] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="load spans two stores"
 stlf_stp_x          | stp {RW0:x}, {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}, #8] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp
