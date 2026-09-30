@@ -133,7 +133,7 @@ void ua_init_apply(ua_regs *regs, const ua_init *init, size_t n)
             unsigned scale = (unsigned)it->val, size = (unsigned)it->val2;
             unsigned nodes = size == 1 ? CYCLE_NODES_BYTE : CYCLE_NODES;
             unsigned spacing = size == 1 ? scale : CYCLE_SPACING;
-            if (it->reg >= 31 || !scale || spacing % scale || it->off < 0 || it->off > 1024)
+            if (it->reg >= 31 || !scale || spacing % scale || it->off < 0 || it->off > 192)
                 break;
             random_cycle(next, nodes);
             for (unsigned k = 0; k < nodes; k++)

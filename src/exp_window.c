@@ -70,29 +70,32 @@ static void f_mix(unsigned j)
     }
 }
 
-/* Fill g_mix with kinds in proportion to cap[], spread evenly (largest
- * accumulated deficit first).  Returns the sum of the capacities. */
-static double mix_plan(const double cap[5])
+/* Fill plan[0..len) with filler kinds in proportion to cap[], spread evenly
+ * (largest accumulated deficit first).  A kind whose capacity is unknown
+ * (<= 0 or NaN) is left out.  Returns the sum of the capacities used, 0 if
+ * there are none (the plan then alternates kinds 0 and 1). */
+double ua_window_mix_plan(const double cap[5], unsigned char *plan, unsigned len)
 {
     double total = 0, credit[5] = {0, 0, 0, 0, 0};
     for (int k = 0; k < 5; k++)
         if (cap[k] > 0)
             total += cap[k];
     if (total <= 0) {
-        for (int i = 0; i < MIX_LEN; i++)
-            g_mix[i] = (unsigned char)(i & 1);
+        for (unsigned i = 0; i < len; i++)
+            plan[i] = (unsigned char)(i & 1);
         return 0;
     }
-    for (int i = 0; i < MIX_LEN; i++) {
-        int best = 0;
+    for (unsigned i = 0; i < len; i++) {
+        int best = -1;
         for (int k = 0; k < 5; k++) {
-            if (cap[k] > 0)
-                credit[k] += cap[k] / total;
-            if (credit[k] > credit[best])
+            if (!(cap[k] > 0))
+                continue;
+            credit[k] += cap[k] / total;
+            if (best < 0 || credit[k] > credit[best])
                 best = k;
         }
         credit[best] -= 1.0;
-        g_mix[i] = (unsigned char)best;
+        plan[i] = (unsigned char)best;
     }
     return total;
 }
@@ -373,7 +376,7 @@ void ua_exp_window(int level, ua_exp_list *out)
     for (int k = 0; k < 5; k++)
         if (isnan(cap[k]))
             cap[k] = 0;
-    double total = mix_plan(cap);
+    double total = ua_window_mix_plan(cap, g_mix, MIX_LEN);
     if (total > 0) {
         double rob = window(out, level, "rob", "Reorder buffer capacity in ordinary instructions",
                             f_mix, 2, (unsigned)(total * 1.4) + 64, 1,

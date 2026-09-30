@@ -56,6 +56,7 @@ const void *ua_jit_end(void);
 
 /* Loop builder ------------------------------------------------------------
  *
+ *     cbz  x28, done          (zero iterations: do nothing)
  *     [init]
  *     .p2align 6
  *  top:
@@ -63,6 +64,7 @@ const void *ua_jit_end(void);
  *     sub  x28, x28, #1
  *     cbnz x28, top
  *     [fini]
+ *  done:
  *     ret
  *
  * Returns the entry point or NULL (arena overflow / loop too long for the

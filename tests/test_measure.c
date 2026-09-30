@@ -72,6 +72,14 @@ int main(void)
         ua_meas bad = ua_measure(chain(24), &regs, &o);
         CHECK(bad.status == UA_BADCOUNT);
 
+        /* ... even a single instruction per iteration at the smallest
+         * iteration count (regression: the tolerance used to hide it). */
+        o.expect_ins = 25;
+        o.n1 = 16;
+        bad = ua_measure(chain(24), &regs, &o);
+        CHECK(bad.status == UA_BADCOUNT);
+        o.n1 = 0;
+
         /* A faulting loop is reported, and measuring still works afterwards. */
         ua_jit_loop_open(NULL, 0);
         ua_jit_put(0x00000000u);

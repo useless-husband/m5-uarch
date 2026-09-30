@@ -16,6 +16,8 @@
 /* Instruction-count tolerance above the minimum.  The counter syscall path
  * itself varies by a few instructions; an interrupt adds thousands. */
 #define INS_TOLERANCE 64
+/* Slack when comparing the counted instructions with the generator's. */
+#define COUNT_TOLERANCE 12
 
 static sigjmp_buf g_jmp;
 static volatile sig_atomic_t g_guard_armed;
@@ -372,14 +374,14 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     if (cs.n[0] < (size_t)o.min_clean || cs.n[1] < (size_t)o.min_clean)
         m.status = UA_NOISY;
     if (o.expect_ins) {
-        /* The two modes may sit on different variants of the counter
-         * syscall path, so compare absolute counts with the same tolerance
-         * that defines a clean run. */
+        /* Compare absolute counts.  The counter system call's own path
+         * varies by a few instructions, so allow that much and no more: one
+         * instruction per iteration too many or too few must be noticed even
+         * at the smallest iteration count (16). */
         int64_t want = (int64_t)(o.expect_ins * (n2 - n1));
         int64_t got = cs.ref[1] - cs.ref[0];
-        if (got - want > INS_TOLERANCE || want - got > INS_TOLERANCE) {
+        if (got - want > COUNT_TOLERANCE || want - got > COUNT_TOLERANCE)
             m.status = UA_BADCOUNT;
-        }
     }
     return m;
 }

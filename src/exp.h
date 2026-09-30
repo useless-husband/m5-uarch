@@ -126,6 +126,10 @@ uint64_t ua_build_chase(uint8_t *base, size_t nodes, size_t stride, size_t off_s
 uint64_t ua_chase_to_pointers(uint8_t *base, size_t nodes, size_t stride, size_t off_step,
                               size_t off_mod, uint64_t first);
 
+/* Plan the blend of fillers for the reorder-buffer experiment (exposed for
+ * tests): kinds 0..4 in proportion to cap[], unknown capacities left out. */
+double ua_window_mix_plan(const double cap[5], unsigned char *plan, unsigned len);
+
 /* Individual experiments (exp_*.c). */
 void ua_exp_width(int level, ua_exp_list *out);
 void ua_exp_window(int level, ua_exp_list *out);

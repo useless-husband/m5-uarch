@@ -61,6 +61,11 @@ static void test_loop_and_constants(void)
     CHECK(ua_run_guarded(code, &r, 1000) == 0);
     CHECK(r.out_x[0] == 100 + 3 * 5 * 1000);
 
+    /* Zero iterations: nothing runs (regression: the counter used to wrap). */
+    r.x[0] = 100;
+    CHECK(ua_run_guarded(code, &r, 0) == 0);
+    CHECK(r.out_x[0] == 100);
+
     static const uint64_t consts[] = {0, 1, 0xffff, 0x10000, 0x123456789abcdef0ull,
                                       0xffffffffffffffffull, 0x8000000000000000ull};
     for (size_t i = 0; i < sizeof consts / sizeof consts[0]; i++) {
@@ -245,6 +250,52 @@ static void test_table(void)
     CHECK(ua_insn_find("no_such_instruction") == NULL);
 }
 
+/* The filler blend for the reorder-buffer experiment. */
+static void test_mix_plan(void)
+{
+    unsigned char plan[64];
+    const double cap[5] = {100, 200, 0, 50, 50};
+    int count[5] = {0, 0, 0, 0, 0};
+    CHECK_NEAR(ua_window_mix_plan(cap, plan, 64), 400, 0);
+    for (int i = 0; i < 64; i++) {
+        CHECK(plan[i] < 5);
+        count[plan[i] % 5]++;
+    }
+    /* Regression: a kind with unknown capacity used to slip into the blend. */
+    CHECK(count[2] == 0);
+    CHECK(count[0] == 16 && count[1] == 32 && count[3] == 8 && count[4] == 8);
+    /* Evenly spread: every window of 8 holds 4 of kind 1. */
+    for (int i = 0; i + 8 <= 64; i += 8) {
+        int ones = 0;
+        for (int j = 0; j < 8; j++)
+            ones += plan[i + j] == 1;
+        CHECK(ones == 4);
+    }
+    const double none[5] = {0, 0, 0, 0, 0};
+    CHECK_NEAR(ua_window_mix_plan(none, plan, 64), 0, 0);
+    CHECK(plan[0] == 0 && plan[1] == 1);
+}
+
+/* Initialisers that would write outside the scratch buffer are ignored. */
+static void test_init_bounds(void)
+{
+    ua_regs r;
+    ua_regs_default(&r);
+    uint64_t before = r.x[5];
+    const ua_init bad[] = {
+        {UA_INIT_CYCLE_IDX, 5, 1024, 1, 8},      /* cells would run past the buffer */
+        {UA_INIT_CYCLE_PTR, 5, 4096, 0, 0},
+        {UA_INIT_MEM, 0, (int32_t)UA_SCRATCH_BYTES, 1, 0},
+        {UA_INIT_MEM, 0, -(int32_t)UA_SCRATCH_BYTES, 1, 0},
+        {UA_INIT_GPR, 40, 0, 1, 0},               /* no such register */
+    };
+    ua_init_apply(&r, bad, sizeof bad / sizeof bad[0]);
+    CHECK(r.x[5] == before);
+    const ua_init good[] = {{UA_INIT_CYCLE_IDX, 5, 0, 8, 8}};
+    ua_init_apply(&r, good, 1);
+    CHECK(r.x[5] == 0);
+}
+
 int main(void)
 {
     if (ua_jit_init() != 0) {
@@ -257,6 +308,8 @@ int main(void)
     test_xorshift_and_branches();
     test_memory_and_chase();
     test_limits_and_faults();
+    test_mix_plan();
+    test_init_bounds();
     test_table();
     return test_finish("test_jit");
 }

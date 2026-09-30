@@ -15,6 +15,7 @@ static size_t g_base; /* function start, in words from the arena start */
 static size_t g_pos;  /* words written since g_base */
 static int g_overflow;
 static size_t g_loop_top;
+static size_t g_loop_skip;
 static uint8_t *g_scratch;
 
 int ua_jit_init(void)
@@ -100,6 +101,10 @@ void ua_jit_loop_open(const uint32_t *init, size_t n_init)
 void ua_jit_loop_open_at(size_t word_offset, const uint32_t *init, size_t n_init)
 {
     ua_jit_begin_at(word_offset);
+    /* Zero iterations must do nothing: without this the counter would wrap
+     * and the loop would run 2^64 times.  Patched in ua_jit_loop_close(). */
+    g_loop_skip = ua_jit_pos();
+    ua_jit_put(a64_nop());
     ua_jit_put_n(init, n_init);
     ua_jit_align(16);
     g_loop_top = ua_jit_pos();
@@ -116,6 +121,12 @@ const void *ua_jit_loop_close(const uint32_t *fini, size_t n_fini)
     int too_far = back < -(1 << 18);
     ua_jit_put(a64_cbnz(UA_REG_CNT, (int32_t)back));
     ua_jit_put_n(fini, n_fini);
+    /* Skip everything, including init and fini, when there is nothing to do. */
+    int64_t fwd = (int64_t)ua_jit_pos() - (int64_t)g_loop_skip;
+    if (fwd < (1 << 18))
+        ua_jit_patch(g_loop_skip, a64_cbz(UA_REG_CNT, (int32_t)fwd));
+    else
+        too_far = 1;
     ua_jit_put(a64_ret());
     const void *entry = ua_jit_end();
     return too_far ? NULL : entry;
