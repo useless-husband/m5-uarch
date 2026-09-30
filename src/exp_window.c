@@ -118,21 +118,23 @@ static void emit_window(void *p)
 
 static uint64_t g_start_a, g_start_b;
 
-static int chase_ready(void)
+/* (Re)build the chase.  Other experiments reuse the big buffer, so this is
+ * done at the start of every window run rather than once. */
+static int g_chase_ok;
+
+static int chase_build(void)
 {
-    static int state; /* 0 untried, 1 ok, -1 failed */
-    if (state == 0) {
-        uint8_t *buf = ua_big_buffer();
-        state = -1;
-        if (buf) {
-            g_start_a = ua_build_chase(buf, UA_BIG_BYTES / NODE_STRIDE, NODE_STRIDE, 0, 0,
-                                       0x243f6a8885a308d3ull, &g_start_b);
-            if (g_start_a != UINT64_MAX)
-                state = 1;
-        }
+    uint8_t *buf = ua_big_buffer();
+    g_chase_ok = 0;
+    if (buf) {
+        g_start_a = ua_build_chase(buf, UA_BIG_BYTES / NODE_STRIDE, NODE_STRIDE, 0, 0,
+                                   0x243f6a8885a308d3ull, &g_start_b);
+        g_chase_ok = g_start_a != UINT64_MAX;
     }
-    return state == 1;
+    return g_chase_ok;
 }
+
+static int chase_ready(void) { return g_chase_ok; }
 
 #define CONTROL_OFFSET (1u << 18) /* words: the control loop's place in the arena */
 
@@ -329,6 +331,7 @@ static void not_separable(ua_exp_result *r, const char *why)
 void ua_exp_window(int level, ua_exp_list *out)
 {
     ua_exp_result *r;
+    chase_build();
     /* A miss lasts a fixed time, not a fixed number of cycles, so let the
      * cluster's clock settle first. */
     ua_freq_settle(400);

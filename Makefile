@@ -17,7 +17,7 @@ BUILD   := build
 DEFS    := $(sort $(wildcard insns/*.def))
 LIB_SRC := src/counters.c src/jit.c src/stats.c src/measure.c src/sysinfo.c src/insn.c \
            src/json.c src/report.c src/exp.c src/exp_common.c src/exp_width.c \
-           src/exp_window.c src/exp_elim.c src/exp_stubs.c
+           src/exp_window.c src/exp_elim.c src/exp_spec.c src/exp_stubs.c
 LIB_OBJ := $(LIB_SRC:src/%.c=$(BUILD)/%.o) $(BUILD)/tramp.o
 GEN_OBJ := $(BUILD)/insns_gen.o $(BUILD)/insns_code.o
 APP_SRC := src/main.c
