@@ -99,6 +99,10 @@ int main(int argc, char **argv)
         emit(a64_ldr(d, n, o8), "ldr x%u, [x%u, #%u]", d, n, o8);
         emit(a64_str(d, n, o8), "str x%u, [x%u, #%u]", d, n, o8);
         emit(a64_ldrb(d, n, imm12), "ldrb w%u, [x%u, #%u]", d, n, imm12);
+        if (d != n) {
+            int post = (int)rnd(512) - 256;
+            emit(a64_ldrb_post(d, n, post), "ldrb w%u, [x%u], #%d", d, n, post);
+        }
         emit(a64_ldr_idx(d, n, m), "ldr x%u, [x%u, x%u]", d, n, m);
         emit(a64_ldr_idx3(d, n, m), "ldr x%u, [x%u, x%u, lsl #3]", d, n, m);
         emit(a64_ldr_d(vd, n, o8), "ldr d%u, [x%u, #%u]", vd, n, o8);

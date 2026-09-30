@@ -145,6 +145,11 @@ static inline uint32_t a64_ldrb(unsigned rt, unsigned rn, unsigned off)
 {
     return 0x39400000u | ((off & 0xfffu) << 10) | (A64_R(rn) << 5) | A64_R(rt);
 }
+/* ldrb wt, [xn], #imm   (post-index, imm in -256..255) */
+static inline uint32_t a64_ldrb_post(unsigned rt, unsigned rn, int imm9)
+{
+    return 0x38400400u | (((uint32_t)imm9 & 0x1ffu) << 12) | (A64_R(rn) << 5) | A64_R(rt);
+}
 /* ldr xt, [xn, xm] */
 static inline uint32_t a64_ldr_idx(unsigned rt, unsigned rn, unsigned rm)
 {

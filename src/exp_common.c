@@ -226,3 +226,16 @@ uint64_t ua_build_chase(uint8_t *base, size_t nodes, size_t stride, size_t off_s
     free(perm);
     return first;
 }
+
+uint64_t ua_chase_to_pointers(uint8_t *base, size_t nodes, size_t stride, size_t off_step,
+                              size_t off_mod, uint64_t first)
+{
+    for (size_t k = 0; k < nodes; k++) {
+        uint8_t *cell = base + k * stride + (off_mod ? (k * off_step) % off_mod : 0);
+        uint64_t v;
+        memcpy(&v, cell, 8);
+        v = (uint64_t)(uintptr_t)base + v * 8;
+        memcpy(cell, &v, 8);
+    }
+    return (uint64_t)(uintptr_t)base + first * 8;
+}

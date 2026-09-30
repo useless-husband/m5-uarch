@@ -120,6 +120,12 @@ uint8_t *ua_big_buffer(void);
 uint64_t ua_build_chase(uint8_t *base, size_t nodes, size_t stride, size_t off_step,
                         size_t off_mod, uint64_t seed, uint64_t *halfway);
 
+/* Turn the indices written by ua_build_chase (same arguments) into absolute
+ * pointers, for a chase of the form ldr x1, [x1].  Returns the pointer that
+ * corresponds to index `first`. */
+uint64_t ua_chase_to_pointers(uint8_t *base, size_t nodes, size_t stride, size_t off_step,
+                              size_t off_mod, uint64_t first);
+
 /* Individual experiments (exp_*.c). */
 void ua_exp_width(int level, ua_exp_list *out);
 void ua_exp_window(int level, ua_exp_list *out);

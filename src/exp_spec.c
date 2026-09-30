@@ -365,17 +365,10 @@ static void prefetch(int level, ua_exp_list *out)
     pa = ua_build_chase(buf, nodes, NODE, 0, 0, 0xa4093822299f31d0ull, &pb);
     double ptr = NAN;
     if (pa != UINT64_MAX) {
-        for (size_t k = 0; k < nodes; k++) {
-            uint64_t v;
-            memcpy(&v, buf + k * NODE, 8);
-            v = (uint64_t)(uintptr_t)buf + v * 8;
-            memcpy(buf + k * NODE, &v, 8);
-        }
-        pa = (uint64_t)(uintptr_t)buf + pa * 8;
         pb = (uint64_t)(uintptr_t)buf + pb * 8;
+        pa = ua_chase_to_pointers(buf, nodes, NODE, 0, 0, pa);
         ptr = dmp_ratio(1, &pa, &pb, level);
     }
-    /* Leave the buffer as the other experiments expect to build it. */
     if (isnan(idx) || isnan(ptr)) {
         ua_exp_note(r, "Measurement was not clean.");
         return;
