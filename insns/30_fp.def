@@ -1,0 +1,87 @@
+# Scalar floating point.
+#
+# Every FP register starts as 1.0 in the lane format named by `fp=`, so that
+# chains stay on ordinary numbers (no subnormals, no NaNs).
+
+group FP / arithmetic
+for t,f in d:d s:s
+fadd_$t             | fadd {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fsub_$t             | fsub {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fmul_$t             | fmul {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fnmul_$t            | fnmul {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fdiv_$t             | fdiv {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fmadd_$t            | fmadd {W0:$t}, {R0:$t}, {R1:$t}, {R2:$t} | fp=$f
+fmsub_$t            | fmsub {W0:$t}, {R0:$t}, {R1:$t}, {R2:$t} | fp=$f
+fnmadd_$t           | fnmadd {W0:$t}, {R0:$t}, {R1:$t}, {R2:$t} | fp=$f
+fmax_$t             | fmax {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fmin_$t             | fmin {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fmaxnm_$t           | fmaxnm {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fminnm_$t           | fminnm {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fabd_$t             | fabd {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fmulx_$t            | fmulx {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+fabs_$t             | fabs {W0:$t}, {R0:$t} | fp=$f
+fneg_$t             | fneg {W0:$t}, {R0:$t} | fp=$f
+fsqrt_$t            | fsqrt {W0:$t}, {R0:$t} | fp=$f
+frecpe_$t           | frecpe {W0:$t}, {R0:$t} | fp=$f
+frsqrte_$t          | frsqrte {W0:$t}, {R0:$t} | fp=$f
+frecps_$t           | frecps {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+frsqrts_$t          | frsqrts {W0:$t}, {R0:$t}, {R1:$t} | fp=$f
+frecpx_$t           | frecpx {W0:$t}, {R0:$t} | fp=$f
+for r in a i m n p x z
+frint$r_$t          | frint$r {W0:$t}, {R0:$t} | fp=$f
+end
+fmov_$t_reg         | fmov {W0:$t}, {R0:$t} | fp=$f
+fmov_$t_imm         | fmov {W0:$t}, #1.0 | fp=$f
+fcmp_$t             | fcmp {R0:$t}, {R1:$t} | flags=w fp=$f
+fcmp_$t_zero        | fcmp {R0:$t}, #0.0 | flags=w fp=$f
+fcmpe_$t            | fcmpe {R0:$t}, {R1:$t} | flags=w fp=$f
+fccmp_$t            | fccmp {R0:$t}, {R1:$t}, #0, ne | flags=rw fp=$f
+fcsel_$t            | fcsel {W0:$t}, {R0:$t}, {R1:$t}, ne | flags=r flip fp=$f
+end
+fmov_d_zero         | fmov {W0:d}, xzr | note="zeroing through the integer zero register"
+movi_d_zero         | movi {W0:d}, #0 | note="zero idiom"
+
+group FP / half precision
+ext FP16
+fadd_h              | fadd {W0:h}, {R0:h}, {R1:h} | fp=h
+fmul_h              | fmul {W0:h}, {R0:h}, {R1:h} | fp=h
+fdiv_h              | fdiv {W0:h}, {R0:h}, {R1:h} | fp=h
+fmadd_h             | fmadd {W0:h}, {R0:h}, {R1:h}, {R2:h} | fp=h
+fsqrt_h             | fsqrt {W0:h}, {R0:h} | fp=h
+fcmp_h              | fcmp {R0:h}, {R1:h} | flags=w fp=h
+fcvt_h_to_s         | fcvt {W0:s}, {R0:h} | fp=h nolat
+fcvt_s_to_h         | fcvt {W0:h}, {R0:s} | fp=s nolat
+fcvt_h_d_roundtrip  | fcvt {W0:d}, {RW1:h} ; fcvt {RW1:h}, {W0:d} | fp=h notp chain=RW1 note="h -> d -> h, both conversions"
+ext -
+
+group FP / conversion
+fcvt_d_to_s         | fcvt {W0:s}, {R0:d} | nolat
+fcvt_s_to_d         | fcvt {W0:d}, {R0:s} | fp=s nolat
+fcvt_s_d_roundtrip  | fcvt {W0:d}, {RW1:s} ; fcvt {RW1:s}, {W0:d} | fp=s notp chain=RW1 note="s -> d -> s, both conversions"
+# Integer <-> FP.  The latency is a round trip: the chain returns to the
+# source register file through fmov.
+fmov_d_from_x       | fmov {W0:d}, {R0:x}
+fmov_x_from_d       | fmov {W0:x}, {R0:d}
+fmov_s_from_w       | fmov {W0:s}, {R0:w}
+fmov_w_from_s       | fmov {W0:w}, {R0:s} | fp=s
+fmov_d1_from_x      | fmov {RW0:v}.d[1], {R0:x} | nolat
+fmov_x_from_d1      | fmov {W0:x}, {R0:v}.d[1] | nolat
+scvtf_d_x           | scvtf {W0:d}, {R0:x} | init=R0:1000
+ucvtf_d_x           | ucvtf {W0:d}, {R0:x} | init=R0:1000
+scvtf_s_w           | scvtf {W0:s}, {R0:w} | init=R0:1000
+scvtf_d_w           | scvtf {W0:d}, {R0:w} | init=R0:1000
+scvtf_d_d           | scvtf {W0:d}, {R0:d} | note="integer-to-FP within the vector register"
+scvtf_d_x_fixed     | scvtf {W0:d}, {R0:x}, #16 | init=R0:1000
+for c in zs zu as au ms mu ns nu ps pu
+fcvt$c_x_d          | fcvt$c {W0:x}, {R0:d}
+end
+fcvtzs_w_s          | fcvtzs {W0:w}, {R0:s} | fp=s
+fcvtzs_w_d          | fcvtzs {W0:w}, {R0:d}
+fcvtzs_d_d          | fcvtzs {W0:d}, {R0:d} | note="FP-to-integer within the vector register"
+fcvtzs_x_d_fixed    | fcvtzs {W0:x}, {R0:d}, #16
+ext JSCVT
+fjcvtzs             | fjcvtzs {W0:w}, {R0:d} | flags=w chain=R0
+ext FRINTTS
+frint32x_d          | frint32x {W0:d}, {R0:d}
+frint64z_d          | frint64z {W0:d}, {R0:d}
+ext -

@@ -1,0 +1,39 @@
+# Branches and system instructions.  Throughput only.
+#
+# Branch targets are written as byte offsets from the instruction, which the
+# assembler encodes without needing labels or relocations.
+
+group Branch
+b_next              | b #4 | nolat note="taken, to the next instruction"
+bcc_not_taken       | b.eq #4 | flags=r nolat note="never taken (Z clear)"
+bcc_taken           | b.ne #4 | flags=r nolat note="always taken, to the next instruction"
+cbz_not_taken       | cbz {R0:x}, #4 | nolat
+cbnz_taken          | cbnz {R0:x}, #4 | nolat
+tbz_not_taken       | tbz {R0:x}, #0, #4 | nolat init=R0:1
+tbnz_taken          | tbnz {R0:x}, #0, #4 | nolat init=R0:1
+cmp_bcc_not_taken   | cmp {R0:x}, {R1:x} ; b.eq #4 | flags=w nolat init=R0:1,R1:2 note="compare and branch pair"
+cmp_bcc_taken       | cmp {R0:x}, {R1:x} ; b.ne #4 | flags=w nolat init=R0:1,R1:2
+bl_ret              | bl #8 ; b #8 ; ret | nolat tpk=4 pre="mov x17, x30" post="mov x30, x17" note="call and return"
+br_next             | adr {W0:x}, #8 ; br {W0:x} | nolat note="indirect, always the same target"
+blr_ret             | adr {W0:x}, #12 ; blr {W0:x} ; b #8 ; ret | nolat tpk=4 pre="mov x17, x30" post="mov x30, x17" note="indirect call and return"
+ext HBC
+bc_not_taken        | bc.eq #4 | flags=r nolat note="consistent conditional branch hint"
+ext -
+
+group System
+nop                 | nop | nolat
+hint_yield          | yield | nolat
+bti_c               | bti c | nolat
+clrex               | clrex | nolat
+isb                 | isb | nolat
+dmb_ish             | dmb ish | nolat
+sb                  | sb | nolat note="speculation barrier"
+mrs_fpcr            | mrs {W0:x}, fpcr | nolat
+mrs_fpsr            | mrs {W0:x}, fpsr | nolat
+mrs_tpidr_el0       | mrs {W0:x}, tpidr_el0 | nolat
+mrs_tpidrro_el0     | mrs {W0:x}, tpidrro_el0 | nolat
+mrs_cntvct_el0      | mrs {W0:x}, cntvct_el0 | nolat
+mrs_dczid_el0       | mrs {W0:x}, dczid_el0 | nolat
+ext DIT
+msr_dit             | msr dit, #0 | nolat
+ext -

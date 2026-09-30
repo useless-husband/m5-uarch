@@ -23,6 +23,7 @@ Operand placeholders in the template:
     {W0:x}    written only          {R1:x}   read only
     {RW0:v}   read and written      {A0}     address base (read, 64-bit)
     {off:8}   instance index * 8    {off:8:64}  64 + instance index * 8
+    {{ }}     literal braces, as in  tbl v0.16b, {{ v1.16b }}, v2.16b
 
 Classes: x w (general purpose), b h s d q v z (FP/SIMD views; `v` and `z`
 render the bare register name so the template adds `.16b` and so on).
@@ -35,7 +36,9 @@ Attributes (space separated key=value):
 
     flags=r|w|rw        the instruction reads / writes NZCV
     init=R0:5,R1:0x10   constants for operands
-    ptr=RW1             operand is a pointer into the scratch buffer
+    ptr=RW1             operand is a pointer into the scratch buffer (on a
+                        read-only operand: eight pointers, one cache line
+                        apart, used in rotation)
     fp=d|s|h|i          lane pattern for all vector registers (default d)
     cell=A0:8           a latency chain through the address operand A0 is
                         possible: build a random cycle of nodes in scratch
@@ -299,6 +302,7 @@ def _parse_attrs(text: str, loc: str) -> dict[str, str]:
 def _collect_operands(spec: Spec) -> None:
     for alt in spec.alts:
         for ins in alt:
+            ins = _protect_braces(ins)
             for m in PLACEHOLDER.finditer(ins):
                 role, idx, cls = m.group(1), int(m.group(2)), m.group(3)
                 if role == "A":
@@ -327,7 +331,19 @@ def _regname(cls: str, n: int) -> str:
     return f"{cls}{n}"
 
 
+def _protect_braces(text: str) -> str:
+    """'{{' and '}}' are literal braces (vector lists); hide them from the
+    placeholder syntax."""
+    return text.replace("{{", "\x01").replace("}}", "\x02")
+
+
+def _restore_braces(text: str) -> str:
+    return text.replace("\x01", "{").replace("\x02", "}")
+
+
 def render(template: str, regs: dict[str, int], inst: int) -> str:
+    template = _protect_braces(template)
+
     def rep(m: re.Match) -> str:
         role, idx, cls = m.group(1), m.group(2), m.group(3)
         key = f"{role}{idx}"
@@ -343,7 +359,7 @@ def render(template: str, regs: dict[str, int], inst: int) -> str:
         base = int(m.group(2)) if m.group(2) else 0
         return str(base + step * inst)
 
-    return OFFSET.sub(off, PLACEHOLDER.sub(rep, template))
+    return _restore_braces(OFFSET.sub(off, PLACEHOLDER.sub(rep, template)))
 
 
 def _parse_int(s: str) -> int:
@@ -372,20 +388,23 @@ def _ptr_map(spec: Spec) -> dict[str, int]:
     return out
 
 
-def _cell_map(spec: Spec) -> dict[str, tuple[int, int, int]]:
-    """operand key -> (offset, scale, size).  scale 0 means a pointer cycle."""
-    out: dict[str, tuple[int, int, int]] = {}
+def _cell_map(spec: Spec) -> dict[str, tuple[list[int], int, int]]:
+    """operand key -> (offsets, scale, size).  scale 0 means a pointer cycle,
+    which may keep its pointer in several cells (ldp loads two of them)."""
+    out: dict[str, tuple[list[int], int, int]] = {}
     if "cell" in spec.attrs:
         for item in spec.attrs["cell"].split(","):
             parts = item.split(":")
             if len(parts) not in (2, 3, 4) or parts[0] not in spec.operands:
                 raise DefError(f"{spec.where}: bad cell attribute {item!r}")
-            off = _parse_int(parts[1])
+            offs = [_parse_int(o) for o in parts[1].split("/")]
             scale = _parse_int(parts[2]) if len(parts) >= 3 else 0
             size = _parse_int(parts[3]) if len(parts) == 4 else 8
             if scale not in (0, 1, 2, 4, 8, 16) or size not in (1, 2, 4, 8):
                 raise DefError(f"{spec.where}: bad cell scale/size in {item!r}")
-            out[parts[0]] = (off, scale, size)
+            if scale and len(offs) != 1:
+                raise DefError(f"{spec.where}: an index cycle has one cell: {item!r}")
+            out[parts[0]] = (offs, scale, size)
     return out
 
 
@@ -469,7 +488,9 @@ def expand(spec: Spec) -> Insn:
 
     rotating = [op for op in ops.values()
                 if op.role == "R" and op.family == "gpr" and op.key not in consts
-                and op.key not in ptrs and not _in_address(spec, op.key)]
+                and (op.key in ptrs or not _in_address(spec, op.key))]
+    if sum(1 for op in rotating if op.key in ptrs) > 1:
+        raise DefError(f"{spec.where}: only one read-only pointer operand can rotate")
 
     def tp_regs(i: int) -> dict[str, int]:
         regs = dict(fixed)
@@ -489,7 +510,12 @@ def expand(spec: Spec) -> Insn:
             for i in range(k):
                 for t in alt:
                     tp_lines.append(render(t, tp_regs(i), i))
-        tp_inits = _base_inits(spec, fixed, set())
+        tp_inits = _base_inits(spec, fixed, {op.key for op in rotating})
+        for op in rotating:
+            if op.key in ptrs:
+                # One cache line per rotation register: independent addresses.
+                for j, reg in enumerate(GPR_ROT):
+                    tp_inits.append(Init("GPR_PTR", reg=reg, val=ptrs[op.key] + 64 * j))
         for i in range(k):
             regs = tp_regs(i)
             for op in written:
@@ -570,7 +596,9 @@ def _one_chain(spec: Spec, fixed: dict[str, int], src: str, dst: str,
         if s_op.role == "RW":
             return None  # a different read-write operand cannot be tied to the output
         if d_op.role == "RW":
-            if s_fam != d_fam:
+            # A writeback base cannot also be the data register
+            # (str x0, [x0, #8]! is unpredictable).
+            if s_fam != d_fam or _in_address(spec, dst):
                 return None
             tied = True
 
@@ -621,11 +649,12 @@ def _one_chain(spec: Spec, fixed: dict[str, int], src: str, dst: str,
             inits.append(Init("GPR", reg=GPR_HELP[0], val=v))
             inits.append(Init("GPR", reg=GPR_HELP[1], val=v))
     if src in cells:
-        off, scale, size = cells[src]
+        offs, scale, size = cells[src]
         if scale == 0:
-            inits.append(Init("CYCLE_PTR", reg=regs[src], off=off))
+            for off in offs:
+                inits.append(Init("CYCLE_PTR", reg=regs[src], off=off))
         else:
-            inits.append(Init("CYCLE_IDX", reg=regs[src], off=off, val=scale, val2=size))
+            inits.append(Init("CYCLE_IDX", reg=regs[src], off=offs[0], val=scale, val2=size))
 
     def label(key: str) -> str:
         if key == "nzcv":

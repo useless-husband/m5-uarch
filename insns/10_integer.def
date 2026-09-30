@@ -1,26 +1,217 @@
-group Integer / arithmetic
+# Base integer instructions.
+# Syntax: see the header of tools/gen_insns.py.
+
+group Integer / add, subtract
 for s in x w
-add_$s_reg      | add {W0:$s}, {R0:$s}, {R1:$s}
-add_$s_imm      | add {W0:$s}, {R0:$s}, #1
-adds_$s_reg     | adds {W0:$s}, {R0:$s}, {R1:$s} | flags=w
-adc_$s          | adc {W0:$s}, {R0:$s}, {R1:$s} | flags=r
-cmp_$s_reg      | cmp {R0:$s}, {R1:$s} | flags=w
-csel_$s         | csel {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
-mul_$s          | mul {W0:$s}, {R0:$s}, {R1:$s}
-madd_$s         | madd {W0:$s}, {R0:$s}, {R1:$s}, {R2:$s}
+add_$s_reg          | add {W0:$s}, {R0:$s}, {R1:$s}
+add_$s_imm          | add {W0:$s}, {R0:$s}, #1
+add_$s_imm_lsl12    | add {W0:$s}, {R0:$s}, #1, lsl #12
+sub_$s_reg          | sub {W0:$s}, {R0:$s}, {R1:$s}
+sub_$s_imm          | sub {W0:$s}, {R0:$s}, #1
+neg_$s              | neg {W0:$s}, {R0:$s}
+for n in 1 2 3 4 5 12
+add_$s_lsl$n        | add {W0:$s}, {R0:$s}, {R1:$s}, lsl #$n
 end
-mov_x_reg       | mov {W0:x}, {R0:x}
-movk_x          | movk {RW0:x}, #0x1234, lsl #16
-udiv_x          | udiv {W0:x}, {R0:x}, {R1:x} | init=R0:0x7fffffffffffffff,R1:1 chain=R0
-ldr_x_base      | ldr {W0:x}, [{A0}] | cell=A0:0
-ldr_x_idx3      | ldr {W0:x}, [{A0}, {R1:x}, lsl #3] | init=R1:8 cell=A0:64,R1:0:8
-ldrb_idx        | ldrb {W0:w}, [{A0}, {R1:x}] | init=R1:8 cell=R1:0:1:1
-ldr_x_post      | ldr {W0:x}, [{RW1:x}], #8 || ldr {W0:x}, [{RW1:x}], #-8 | ptr=RW1
-str_x           | str {R0:x}, [{A0}, #{off:8}]
-stlf_x          | str {R0:x}, [{A0}] ; ldr {W0:x}, [{A0}]
-stlf_x_inc      | str {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp
-fadd_d          | fadd {W0:d}, {R0:d}, {R1:d}
-fmla_4s         | fmla {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s | fp=s
-scvtf_d_x       | scvtf {W0:d}, {R0:x}
-fcvtzs_x_d      | fcvtzs {W0:x}, {R0:d}
-fcmp_d          | fcmp {R0:d}, {R1:d} | flags=w
+add_$s_lsr3         | add {W0:$s}, {R0:$s}, {R1:$s}, lsr #3
+add_$s_asr3         | add {W0:$s}, {R0:$s}, {R1:$s}, asr #3
+sub_$s_lsl2         | sub {W0:$s}, {R0:$s}, {R1:$s}, lsl #2
+sub_$s_lsr3         | sub {W0:$s}, {R0:$s}, {R1:$s}, lsr #3
+neg_$s_lsl2         | neg {W0:$s}, {R0:$s}, lsl #2
+add_$s_uxtb         | add {W0:$s}, {R0:$s}, {R1:w}, uxtb
+add_$s_uxth         | add {W0:$s}, {R0:$s}, {R1:w}, uxth
+add_$s_sxtb         | add {W0:$s}, {R0:$s}, {R1:w}, sxtb
+add_$s_sxth_lsl2    | add {W0:$s}, {R0:$s}, {R1:w}, sxth #2
+adds_$s_reg         | adds {W0:$s}, {R0:$s}, {R1:$s} | flags=w
+adds_$s_imm         | adds {W0:$s}, {R0:$s}, #1 | flags=w
+adds_$s_lsl2        | adds {W0:$s}, {R0:$s}, {R1:$s}, lsl #2 | flags=w
+subs_$s_reg         | subs {W0:$s}, {R0:$s}, {R1:$s} | flags=w
+subs_$s_imm         | subs {W0:$s}, {R0:$s}, #1 | flags=w
+subs_$s_lsl2        | subs {W0:$s}, {R0:$s}, {R1:$s}, lsl #2 | flags=w
+negs_$s             | negs {W0:$s}, {R0:$s} | flags=w
+cmp_$s_reg          | cmp {R0:$s}, {R1:$s} | flags=w
+cmp_$s_imm          | cmp {R0:$s}, #1 | flags=w
+cmp_$s_lsl2         | cmp {R0:$s}, {R1:$s}, lsl #2 | flags=w
+cmn_$s_reg          | cmn {R0:$s}, {R1:$s} | flags=w
+cmn_$s_imm          | cmn {R0:$s}, #1 | flags=w
+adc_$s              | adc {W0:$s}, {R0:$s}, {R1:$s} | flags=r
+sbc_$s              | sbc {W0:$s}, {R0:$s}, {R1:$s} | flags=r
+ngc_$s              | ngc {W0:$s}, {R0:$s} | flags=r
+adcs_$s             | adcs {W0:$s}, {R0:$s}, {R1:$s} | flags=rw
+sbcs_$s             | sbcs {W0:$s}, {R0:$s}, {R1:$s} | flags=rw
+end
+add_x_sxtw          | add {W0:x}, {R0:x}, {R1:w}, sxtw
+add_x_uxtw          | add {W0:x}, {R0:x}, {R1:w}, uxtw
+add_x_uxtw_lsl2     | add {W0:x}, {R0:x}, {R1:w}, uxtw #2
+add_x_sxtw_lsl3     | add {W0:x}, {R0:x}, {R1:w}, sxtw #3
+sub_x_sxtw          | sub {W0:x}, {R0:x}, {R1:w}, sxtw
+cmp_x_sxtw          | cmp {R0:x}, {R1:w}, sxtw | flags=w
+adr                 | adr {W0:x}, #0
+adrp                | adrp {W0:x}, #0
+
+group Integer / logical
+for s in x w
+and_$s_reg          | and {W0:$s}, {R0:$s}, {R1:$s}
+orr_$s_reg          | orr {W0:$s}, {R0:$s}, {R1:$s}
+eor_$s_reg          | eor {W0:$s}, {R0:$s}, {R1:$s}
+bic_$s_reg          | bic {W0:$s}, {R0:$s}, {R1:$s}
+orn_$s_reg          | orn {W0:$s}, {R0:$s}, {R1:$s}
+eon_$s_reg          | eon {W0:$s}, {R0:$s}, {R1:$s}
+mvn_$s              | mvn {W0:$s}, {R0:$s}
+and_$s_imm          | and {W0:$s}, {R0:$s}, #0xff
+orr_$s_imm          | orr {W0:$s}, {R0:$s}, #0xff
+eor_$s_imm          | eor {W0:$s}, {R0:$s}, #0xff
+and_$s_lsl3         | and {W0:$s}, {R0:$s}, {R1:$s}, lsl #3
+orr_$s_lsl3         | orr {W0:$s}, {R0:$s}, {R1:$s}, lsl #3
+eor_$s_lsl3         | eor {W0:$s}, {R0:$s}, {R1:$s}, lsl #3
+eor_$s_lsr3         | eor {W0:$s}, {R0:$s}, {R1:$s}, lsr #3
+eor_$s_asr3         | eor {W0:$s}, {R0:$s}, {R1:$s}, asr #3
+eor_$s_ror3         | eor {W0:$s}, {R0:$s}, {R1:$s}, ror #3
+bic_$s_lsl3         | bic {W0:$s}, {R0:$s}, {R1:$s}, lsl #3
+ands_$s_reg         | ands {W0:$s}, {R0:$s}, {R1:$s} | flags=w
+ands_$s_imm         | ands {W0:$s}, {R0:$s}, #0xff | flags=w
+ands_$s_lsl3        | ands {W0:$s}, {R0:$s}, {R1:$s}, lsl #3 | flags=w
+bics_$s_reg         | bics {W0:$s}, {R0:$s}, {R1:$s} | flags=w
+tst_$s_reg          | tst {R0:$s}, {R1:$s} | flags=w
+tst_$s_imm          | tst {R0:$s}, #0xff | flags=w
+end
+
+group Integer / moves and immediates
+for s in x w
+mov_$s_reg          | mov {W0:$s}, {R0:$s}
+mov_$s_zero         | mov {W0:$s}, #0
+mov_$s_imm16        | mov {W0:$s}, #0x1234
+mov_$s_imm16_hw1    | mov {W0:$s}, #0x12340000
+mov_$s_neg1         | mov {W0:$s}, #-1
+movk_$s             | movk {RW0:$s}, #0x1234, lsl #16
+mov_$s_zr           | mov {W0:$s}, $szr
+end
+mov_x_imm48         | mov {W0:x}, #0x123400000000
+mov_x_bitmask64     | mov {W0:x}, #0x5555555555555555
+mov_w_bitmask       | mov {W0:w}, #0x55555555
+mov_w_x_trunc       | mov {W0:w}, {R0:w} | note="32-bit move: zero-extends"
+add_x_imm0          | add {W0:x}, {R0:x}, #0 | note="the encoding of mov to/from sp"
+orr_x_zr_second     | orr {W0:x}, {R0:x}, xzr | note="a move, but not the canonical mov encoding"
+eor_x_self          | eor {W0:x}, {R0:x}, {R0:x} | note="zero idiom on x86; an ordinary eor here?"
+sub_x_self          | sub {W0:x}, {R0:x}, {R0:x}
+
+group Integer / shifts and bitfields
+for s in x w
+lsl_$s_imm          | lsl {W0:$s}, {R0:$s}, #5
+lsr_$s_imm          | lsr {W0:$s}, {R0:$s}, #5
+asr_$s_imm          | asr {W0:$s}, {R0:$s}, #5
+ror_$s_imm          | ror {W0:$s}, {R0:$s}, #5
+lsl_$s_reg          | lsl {W0:$s}, {R0:$s}, {R1:$s}
+lsr_$s_reg          | lsr {W0:$s}, {R0:$s}, {R1:$s}
+asr_$s_reg          | asr {W0:$s}, {R0:$s}, {R1:$s}
+ror_$s_reg          | ror {W0:$s}, {R0:$s}, {R1:$s}
+ubfx_$s             | ubfx {W0:$s}, {R0:$s}, #5, #7
+sbfx_$s             | sbfx {W0:$s}, {R0:$s}, #5, #7
+ubfiz_$s            | ubfiz {W0:$s}, {R0:$s}, #5, #7
+sbfiz_$s            | sbfiz {W0:$s}, {R0:$s}, #5, #7
+bfi_$s              | bfi {RW0:$s}, {R0:$s}, #5, #7
+bfxil_$s            | bfxil {RW0:$s}, {R0:$s}, #5, #7
+bfc_$s              | bfc {RW0:$s}, #5, #7
+extr_$s             | extr {W0:$s}, {R0:$s}, {R1:$s}, #13
+sxtb_$s             | sxtb {W0:$s}, {R0:w}
+sxth_$s             | sxth {W0:$s}, {R0:w}
+end
+sxtw                | sxtw {W0:x}, {R0:w}
+uxtb                | uxtb {W0:w}, {R0:w}
+uxth                | uxth {W0:w}, {R0:w}
+
+group Integer / bit manipulation
+for s in x w
+clz_$s              | clz {W0:$s}, {R0:$s}
+cls_$s              | cls {W0:$s}, {R0:$s}
+rbit_$s             | rbit {W0:$s}, {R0:$s}
+rev_$s              | rev {W0:$s}, {R0:$s}
+rev16_$s            | rev16 {W0:$s}, {R0:$s}
+end
+rev32_x             | rev32 {W0:x}, {R0:x}
+ext CSSC
+for s in x w
+cnt_$s              | cnt {W0:$s}, {R0:$s}
+ctz_$s              | ctz {W0:$s}, {R0:$s}
+abs_$s              | abs {W0:$s}, {R0:$s}
+smax_$s_reg         | smax {W0:$s}, {R0:$s}, {R1:$s}
+smin_$s_reg         | smin {W0:$s}, {R0:$s}, {R1:$s}
+umax_$s_reg         | umax {W0:$s}, {R0:$s}, {R1:$s}
+umin_$s_reg         | umin {W0:$s}, {R0:$s}, {R1:$s}
+smax_$s_imm         | smax {W0:$s}, {R0:$s}, #5
+umin_$s_imm         | umin {W0:$s}, {R0:$s}, #5
+end
+ext -
+
+group Integer / conditional
+# csel with a condition that never changes behaves like a register move on
+# M5 P-cores.  `flip` runs these with inverted flags between measurements so
+# that the table holds the data-flow latency; the structure experiment
+# "csel" measures the shortcut itself.
+for s in x w
+csel_$s             | csel {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
+csinc_$s            | csinc {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
+csinv_$s            | csinv {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
+csneg_$s            | csneg {W0:$s}, {R0:$s}, {R1:$s}, ne | flags=r flip init=R0:0x12f
+cset_$s             | cset {W0:$s}, ne | flags=r flip
+csetm_$s            | csetm {W0:$s}, ne | flags=r flip
+cinc_$s             | cinc {W0:$s}, {R0:$s}, ne | flags=r flip
+cinv_$s             | cinv {W0:$s}, {R0:$s}, ne | flags=r flip
+cneg_$s             | cneg {W0:$s}, {R0:$s}, ne | flags=r flip
+ccmp_$s_reg         | ccmp {R0:$s}, {R1:$s}, #0, ne | flags=rw
+ccmp_$s_imm         | ccmp {R0:$s}, #5, #0, ne | flags=rw
+ccmn_$s_reg         | ccmn {R0:$s}, {R1:$s}, #0, ne | flags=rw
+end
+
+group Integer / flags
+mrs_nzcv            | mrs {W0:x}, nzcv | flags=r
+msr_nzcv            | msr nzcv, {R0:x} | flags=w init=R0:0
+ext FlagM
+cfinv               | cfinv | flags=rw
+rmif                | rmif {R0:x}, #3, #15 | flags=w
+setf8               | setf8 {R0:w} | flags=w
+setf16              | setf16 {R0:w} | flags=w
+ext FlagM2
+axflag              | axflag | flags=rw
+xaflag              | xaflag | flags=rw
+ext -
+
+group Integer / multiply
+for s in x w
+mul_$s              | mul {W0:$s}, {R0:$s}, {R1:$s}
+madd_$s             | madd {W0:$s}, {R0:$s}, {R1:$s}, {R2:$s}
+msub_$s             | msub {W0:$s}, {R0:$s}, {R1:$s}, {R2:$s}
+mneg_$s             | mneg {W0:$s}, {R0:$s}, {R1:$s}
+end
+smull               | smull {W0:x}, {R0:w}, {R1:w}
+umull               | umull {W0:x}, {R0:w}, {R1:w}
+smaddl              | smaddl {W0:x}, {R0:w}, {R1:w}, {R2:x}
+umaddl              | umaddl {W0:x}, {R0:w}, {R1:w}, {R2:x}
+smsubl              | smsubl {W0:x}, {R0:w}, {R1:w}, {R2:x}
+smulh               | smulh {W0:x}, {R0:x}, {R1:x}
+umulh               | umulh {W0:x}, {R0:x}, {R1:x}
+
+group Integer / divide
+# Division time depends on the operand values, so each case fixes them.
+# Dividing by 1 keeps a chain through the dividend stable; a chain through
+# the divisor is stable when dividend = divisor squared.
+for s,big,sq,rt in x:0x7fffffffffffffff:0x4000000000000000:0x80000000 w:0x7fffffff:0x40000000:0x8000
+udiv_$s_q_small     | udiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:100,R1:1 chain=R0 note="quotient 100"
+udiv_$s_q_max       | udiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:$big,R1:1 chain=R0 note="quotient of maximum width"
+udiv_$s_via_divisor | udiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:$sq,R1:$rt chain=R1 note="dividend 2^2k, divisor 2^k"
+udiv_$s_q_zero      | udiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:0,R1:7 chain=R0 note="zero dividend"
+sdiv_$s_q_small     | sdiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:100,R1:1 chain=R0 note="quotient 100"
+sdiv_$s_q_max       | sdiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:$big,R1:1 chain=R0 note="quotient of maximum width"
+sdiv_$s_via_divisor | sdiv {W0:$s}, {R0:$s}, {R1:$s} | init=R0:$sq,R1:$rt chain=R1 note="dividend 2^2k, divisor 2^k"
+end
+
+group Integer / CRC32
+ext CRC32
+crc32b              | crc32b {W0:w}, {R0:w}, {R1:w}
+crc32h              | crc32h {W0:w}, {R0:w}, {R1:w}
+crc32w              | crc32w {W0:w}, {R0:w}, {R1:w}
+crc32x              | crc32x {W0:w}, {R0:w}, {R1:x}
+crc32cb             | crc32cb {W0:w}, {R0:w}, {R1:w}
+crc32ch             | crc32ch {W0:w}, {R0:w}, {R1:w}
+crc32cw             | crc32cw {W0:w}, {R0:w}, {R1:w}
+crc32cx             | crc32cx {W0:w}, {R0:w}, {R1:x}
+ext -

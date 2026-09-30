@@ -15,7 +15,9 @@ WARN    := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes \
 BUILD   := build
 
 DEFS    := $(sort $(wildcard insns/*.def))
-LIB_SRC := src/counters.c src/jit.c src/stats.c src/measure.c src/sysinfo.c src/insn.c
+LIB_SRC := src/counters.c src/jit.c src/stats.c src/measure.c src/sysinfo.c src/insn.c \
+           src/json.c src/report.c src/exp.c src/exp_common.c src/exp_width.c \
+           src/exp_window.c src/exp_stubs.c
 LIB_OBJ := $(LIB_SRC:src/%.c=$(BUILD)/%.o) $(BUILD)/tramp.o
 GEN_OBJ := $(BUILD)/insns_gen.o $(BUILD)/insns_code.o
 APP_SRC := src/main.c
@@ -40,8 +42,12 @@ $(BUILD)/insns_code.S: $(DEFS) tools/gen_insns.py | $(BUILD)
 	$(PYTHON) tools/gen_insns.py $(DEFS) --asm $(BUILD)/insns_code.S --c $(BUILD)/insns_gen.c
 $(BUILD)/insns_gen.c: $(BUILD)/insns_code.S ;
 
+# Every extension that appears in insns/*.def must be enabled for the
+# assembler; whether the CPU implements it is decided at run time.
+ASM_MARCH ?= armv9.2-a+sme2+sme-i16i64+sme-f64f64+crypto+sha3+sm4+memtag+bf16+i8mm+fp16+cssc+hbc
+
 $(BUILD)/insns_code.o: $(BUILD)/insns_code.S
-	$(CC) -c $< -o $@
+	$(CC) -march=$(ASM_MARCH) -c $< -o $@
 
 $(BUILD)/insns_gen.o: $(BUILD)/insns_gen.c $(HDRS)
 	$(CC) $(CFLAGS) $(WARN) -Isrc -c $< -o $@

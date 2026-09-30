@@ -1,0 +1,106 @@
+# Loads, stores and store-to-load forwarding.
+#
+# Load latency is measured by pointer chasing.  The chain does not walk a
+# single self-pointing cell: on cores with a load value predictor a load that
+# always returns the same value is predicted and the chain collapses.  The
+# `cell=` attribute builds a random 509-node cycle in the scratch buffer
+# instead (see src/insn.c).
+
+group Load / integer
+ldr_x_base          | ldr {W0:x}, [{A0}] | cell=A0:0
+ldr_x_imm           | ldr {W0:x}, [{A0}, #8] | cell=A0:8
+ldur_x              | ldur {W0:x}, [{A0}, #8] | cell=A0:8
+ldur_x_unaligned    | ldur {W0:x}, [{A0}, #3] | cell=A0:3 note="address not 8-byte aligned, within one cache line"
+ldur_x_split        | ldur {W0:x}, [{A0}, #60] | cell=A0:60 note="straddles a 64-byte boundary"
+ldr_x_idx           | ldr {W0:x}, [{A0}, {R1:x}] | init=R1:16 cell=A0:16,R1:0:1
+ldr_x_idx_lsl3      | ldr {W0:x}, [{A0}, {R1:x}, lsl #3] | init=R1:2 cell=A0:16,R1:0:8
+ldr_x_idx_sxtw      | ldr {W0:x}, [{A0}, {R1:w}, sxtw] | init=R1:16 cell=A0:16,R1:0:1
+ldr_x_idx_uxtw_lsl3 | ldr {W0:x}, [{A0}, {R1:w}, uxtw #3] | init=R1:2 cell=A0:16,R1:0:8
+ldr_x_pre           | ldr {W0:x}, [{RW1:x}, #8]! || ldr {W0:x}, [{RW1:x}, #-8]! | ptr=RW1
+ldr_x_post          | ldr {W0:x}, [{RW1:x}], #8 || ldr {W0:x}, [{RW1:x}], #-8 | ptr=RW1
+ldr_w_idx           | ldr {W0:w}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:4
+ldr_w_idx_lsl2      | ldr {W0:w}, [{A0}, {R1:x}, lsl #2] | init=R1:4 cell=R1:0:4:4
+ldrsw_idx           | ldrsw {W0:x}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:4
+ldrh_idx            | ldrh {W0:w}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:2
+ldrsh_idx           | ldrsh {W0:x}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:2
+ldrb_idx            | ldrb {W0:w}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:1
+ldrsb_idx           | ldrsb {W0:x}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:1
+ldr_w_base          | ldr {W0:w}, [{A0}]
+ldrb_base           | ldrb {W0:w}, [{A0}]
+ldrh_base           | ldrh {W0:w}, [{A0}]
+ldrsw_base          | ldrsw {W0:x}, [{A0}]
+ldp_x               | ldp {W0:x}, {W1:x}, [{A0}] | cell=A0:0/8
+ldp_w               | ldp {W0:w}, {W1:w}, [{A0}]
+ldpsw               | ldpsw {W0:x}, {W1:x}, [{A0}]
+ldp_x_post          | ldp {W0:x}, {W1:x}, [{RW2:x}], #16 || ldp {W0:x}, {W1:x}, [{RW2:x}], #-16 | ptr=RW2
+prfm_pldl1keep      | prfm pldl1keep, [{A0}]
+
+group Load / FP and SIMD
+# The loaded value returns to the address through fmov x, d, so these
+# latencies are round trips (load + FP-to-integer transfer).
+ldr_d_base          | ldr {W0:d}, [{A0}] | cell=A0:0
+ldr_q_base          | ldr {W0:q}, [{A0}] | cell=A0:0
+ldr_s_idx           | ldr {W0:s}, [{A0}, {R1:x}] | init=R1:16 cell=R1:0:1:4
+ldr_d_idx           | ldr {W0:d}, [{A0}, {R1:x}] | init=R1:16 cell=A0:16,R1:0:1
+ldur_q              | ldur {W0:q}, [{A0}, #8] | cell=A0:8
+ldp_d               | ldp {W0:d}, {W1:d}, [{A0}] | cell=A0:0/8
+ldp_q               | ldp {W0:q}, {W1:q}, [{A0}] | cell=A0:0/16
+ld1_16b             | ld1 {{ {W0:v}.16b }}, [{A0}] | cell=A0:0
+ld1_2x16b           | ld1 {{ {W0:v}.16b, {W1:v}.16b }}, [{A0}] | nolat
+ld1_3x16b           | ld1 {{ {W0:v}.16b, {W1:v}.16b, {W2:v}.16b }}, [{A0}] | nolat
+ld1_4x16b           | ld1 {{ {W0:v}.16b, {W1:v}.16b, {W2:v}.16b, {W3:v}.16b }}, [{A0}] | nolat
+ld2_16b             | ld2 {{ {W0:v}.16b, {W1:v}.16b }}, [{A0}] | nolat
+ld3_16b             | ld3 {{ {W0:v}.16b, {W1:v}.16b, {W2:v}.16b }}, [{A0}] | nolat
+ld4_16b             | ld4 {{ {W0:v}.16b, {W1:v}.16b, {W2:v}.16b, {W3:v}.16b }}, [{A0}] | nolat
+ld1r_4s             | ld1r {{ {W0:v}.4s }}, [{A0}] | nolat
+ld1r_2d             | ld1r {{ {W0:v}.2d }}, [{A0}] | cell=A0:0
+ld1_lane_d          | ld1 {{ {RW0:v}.d }}[0], [{A0}] | nolat
+
+group Store / integer
+str_x               | str {R0:x}, [{A0}, #{off:8}]
+str_x_same          | str {R0:x}, [{A0}] | note="every instance writes the same address"
+stur_x              | stur {R0:x}, [{A0}, #{off:8:1}] | note="unaligned"
+str_w               | str {R0:w}, [{A0}, #{off:4}]
+strh                | strh {R0:w}, [{A0}, #{off:2}]
+strb                | strb {R0:w}, [{A0}, #{off:1}]
+str_x_idx           | str {R0:x}, [{A0}, {R1:x}] | init=R1:16
+str_x_idx_lsl3      | str {R0:x}, [{A0}, {R1:x}, lsl #3] | init=R1:2
+str_x_pre           | str {R0:x}, [{RW1:x}, #8]! || str {R0:x}, [{RW1:x}, #-8]! | ptr=RW1
+str_x_post          | str {R0:x}, [{RW1:x}], #8 || str {R0:x}, [{RW1:x}], #-8 | ptr=RW1
+stp_x               | stp {R0:x}, {R1:x}, [{A0}, #{off:16}]
+stp_w               | stp {R0:w}, {R1:w}, [{A0}, #{off:8}]
+stp_x_pre           | stp {R0:x}, {R1:x}, [{RW2:x}, #16]! || stp {R0:x}, {R1:x}, [{RW2:x}, #-16]! | ptr=RW2
+str_xzr             | str xzr, [{A0}, #{off:8}]
+
+group Store / FP and SIMD
+str_s               | str {R0:s}, [{A0}, #{off:4}]
+str_d               | str {R0:d}, [{A0}, #{off:8}]
+str_q               | str {R0:q}, [{A0}, #{off:16}]
+stp_d               | stp {R0:d}, {R1:d}, [{A0}, #{off:16}]
+stp_q               | stp {R0:q}, {R1:q}, [{A0}, #{off:32}]
+st1_16b             | st1 {{ {R0:v}.16b }}, [{A0}]
+st1_2x16b           | st1 {{ v12.16b, v13.16b }}, [{A0}]
+st1_4x16b           | st1 {{ v12.16b, v13.16b, v14.16b, v15.16b }}, [{A0}]
+st2_16b             | st2 {{ v12.16b, v13.16b }}, [{A0}]
+st3_16b             | st3 {{ v12.16b, v13.16b, v14.16b }}, [{A0}]
+st4_16b             | st4 {{ v12.16b, v13.16b, v14.16b, v15.16b }}, [{A0}]
+st1_lane_d          | st1 {{ {R0:v}.d }}[1], [{A0}]
+
+group Store-to-load forwarding
+# One step stores the chain register and loads it back.  The variants with
+# "+add" change the value on every step, which defeats value prediction; the
+# add's cycle is subtracted.  The variants without it forward a constant.
+stlf_x              | str {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="str x / ldr x, value changes every step"
+stlf_x_const        | str {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}] | notp note="str x / ldr x, constant value"
+stlf_w              | str {RW0:w}, [{A0}] ; ldr {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp
+stlf_b              | strb {RW0:w}, [{A0}] ; ldrb {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp
+stlf_x_to_w         | str {RW0:x}, [{A0}] ; ldr {RW0:w}, [{A0}] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="narrower load, same address"
+stlf_x_to_w_hi      | str {RW0:x}, [{A0}] ; ldr {RW0:w}, [{A0}, #4] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="narrower load from the upper half"
+stlf_x_to_b3        | str {RW0:x}, [{A0}] ; ldrb {RW0:w}, [{A0}, #3] ; add {RW0:w}, {RW0:w}, #1 | extra=1 notp note="one byte out of the middle"
+stlf_w_to_x_fail    | str {RW0:w}, [{A0}] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="load wider than the store: cannot forward"
+stlf_2w_to_x        | str {RW0:w}, [{A0}] ; str {RW0:w}, [{A0}, #4] ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="load spans two stores"
+stlf_stp_x          | stp {RW0:x}, {RW0:x}, [{A0}] ; ldr {RW0:x}, [{A0}, #8] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp
+stlf_x_offset       | str {RW0:x}, [{A0}, #16] ; ldr {RW0:x}, [{A0}, #16] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp
+stlf_d_const        | str {RW0:d}, [{A0}] ; ldr {RW0:d}, [{A0}] | notp note="FP, constant value"
+stlf_q_const        | str {RW0:q}, [{A0}] ; ldr {RW0:q}, [{A0}] | notp note="128-bit, constant value"
+stlf_x_far          | str {RW0:x}, [{A0}] ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; nop ; ldr {RW0:x}, [{A0}] ; add {RW0:x}, {RW0:x}, #1 | extra=1 notp note="12 nops between store and load"

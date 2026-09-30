@@ -1,0 +1,230 @@
+# Advanced SIMD (NEON).
+
+group SIMD / integer arithmetic
+for T in 16b 8h 4s 2d
+add_$T              | add {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+sub_$T              | sub {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+abs_$T              | abs {W0:v}.$T, {R0:v}.$T
+neg_$T              | neg {W0:v}.$T, {R0:v}.$T
+sqadd_$T            | sqadd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+uqsub_$T            | uqsub {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+cmeq_$T             | cmeq {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+cmgt_$T             | cmgt {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+cmhi_$T             | cmhi {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+cmeq_$T_zero        | cmeq {W0:v}.$T, {R0:v}.$T, #0
+cmtst_$T            | cmtst {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+sshl_$T             | sshl {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+ushl_$T             | ushl {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+sqshl_$T            | sqshl {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+srshl_$T            | srshl {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+shl_$T              | shl {W0:v}.$T, {R0:v}.$T, #3
+sshr_$T             | sshr {W0:v}.$T, {R0:v}.$T, #3
+ushr_$T             | ushr {W0:v}.$T, {R0:v}.$T, #3
+srshr_$T            | srshr {W0:v}.$T, {R0:v}.$T, #3
+ssra_$T             | ssra {RW0:v}.$T, {R0:v}.$T, #3
+usra_$T             | usra {RW0:v}.$T, {R0:v}.$T, #3
+sli_$T              | sli {RW0:v}.$T, {R0:v}.$T, #3
+sri_$T              | sri {RW0:v}.$T, {R0:v}.$T, #3
+end
+for T in 16b 8h 4s
+mul_$T              | mul {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+mla_$T              | mla {RW0:v}.$T, {R0:v}.$T, {R1:v}.$T
+mls_$T              | mls {RW0:v}.$T, {R0:v}.$T, {R1:v}.$T
+smax_$T             | smax {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+umin_$T             | umin {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+sabd_$T             | sabd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+uaba_$T             | uaba {RW0:v}.$T, {R0:v}.$T, {R1:v}.$T
+shadd_$T            | shadd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+urhadd_$T           | urhadd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+addp_$T             | addp {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+umaxp_$T            | umaxp {W0:v}.$T, {R0:v}.$T, {R1:v}.$T
+clz_$T              | clz {W0:v}.$T, {R0:v}.$T
+cls_$T              | cls {W0:v}.$T, {R0:v}.$T
+sqabs_$T            | sqabs {W0:v}.$T, {R0:v}.$T
+end
+addp_2d             | addp {W0:v}.2d, {R0:v}.2d, {R1:v}.2d
+addp_d_scalar       | addp {W0:d}, {R0:v}.2d
+mul_4s_elem         | mul {W0:v}.4s, {R0:v}.4s, {R1:v}.s[1]
+mul_8h_elem         | mul {W0:v}.8h, {R0:v}.8h, {R1:v}.h[1]
+mla_4s_elem         | mla {RW0:v}.4s, {R0:v}.4s, {R1:v}.s[1]
+sqdmulh_8h          | sqdmulh {W0:v}.8h, {R0:v}.8h, {R1:v}.8h
+sqdmulh_4s          | sqdmulh {W0:v}.4s, {R0:v}.4s, {R1:v}.4s
+sqrdmulh_4s         | sqrdmulh {W0:v}.4s, {R0:v}.4s, {R1:v}.4s
+ext RDM
+sqrdmlah_4s         | sqrdmlah {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s
+ext -
+add_d_scalar        | add {W0:d}, {R0:d}, {R1:d} | note="integer add on the low 64 bits"
+cmeq_d_scalar       | cmeq {W0:d}, {R0:d}, {R1:d}
+shl_d_scalar        | shl {W0:d}, {R0:d}, #3
+ushl_d_scalar       | ushl {W0:d}, {R0:d}, {R1:d}
+cnt_16b             | cnt {W0:v}.16b, {R0:v}.16b
+rbit_16b            | rbit {W0:v}.16b, {R0:v}.16b
+rev16_16b           | rev16 {W0:v}.16b, {R0:v}.16b
+rev32_16b           | rev32 {W0:v}.16b, {R0:v}.16b
+rev64_16b           | rev64 {W0:v}.16b, {R0:v}.16b
+rev64_4s            | rev64 {W0:v}.4s, {R0:v}.4s
+urecpe_4s           | urecpe {W0:v}.4s, {R0:v}.4s
+ursqrte_4s          | ursqrte {W0:v}.4s, {R0:v}.4s
+
+group SIMD / logical
+and_16b             | and {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+orr_16b             | orr {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+eor_16b             | eor {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+bic_16b             | bic {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+orn_16b             | orn {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+not_16b             | not {W0:v}.16b, {R0:v}.16b
+bsl_16b             | bsl {RW0:v}.16b, {R0:v}.16b, {R1:v}.16b
+bit_16b             | bit {RW0:v}.16b, {R0:v}.16b, {R1:v}.16b
+bif_16b             | bif {RW0:v}.16b, {R0:v}.16b, {R1:v}.16b
+orr_4s_imm          | orr {RW0:v}.4s, #1
+bic_4s_imm          | bic {RW0:v}.4s, #1
+eor_16b_self        | eor {W0:v}.16b, {R0:v}.16b, {R0:v}.16b | note="a zero idiom on x86"
+
+group SIMD / moves, immediates, permutes
+mov_16b             | mov {W0:v}.16b, {R0:v}.16b
+movi_16b            | movi {W0:v}.16b, #1
+movi_2d_zero        | movi {W0:v}.2d, #0 | note="zero idiom"
+movi_16b_zero       | movi {W0:v}.16b, #0
+movi_2d_ones        | movi {W0:v}.2d, #0xffffffffffffffff
+movi_4s             | movi {W0:v}.4s, #1
+mvni_4s             | mvni {W0:v}.4s, #1
+fmov_4s_imm         | fmov {W0:v}.4s, #1.0
+dup_16b_w           | dup {W0:v}.16b, {R0:w}
+dup_4s_w            | dup {W0:v}.4s, {R0:w}
+dup_2d_x            | dup {W0:v}.2d, {R0:x}
+dup_4s_elem         | dup {W0:v}.4s, {R0:v}.s[1]
+dup_2d_elem         | dup {W0:v}.2d, {R0:v}.d[1]
+dup_s_scalar        | mov {W0:s}, {R0:v}.s[1]
+ins_s_w             | mov {RW0:v}.s[1], {R0:w}
+ins_d_x             | mov {RW0:v}.d[1], {R0:x}
+ins_s_elem          | mov {RW0:v}.s[1], {R0:v}.s[2]
+ins_b_elem          | mov {RW0:v}.b[3], {R0:v}.b[5]
+umov_w_s            | mov {W0:w}, {R0:v}.s[1]
+umov_x_d            | mov {W0:x}, {R0:v}.d[1]
+umov_w_b            | umov {W0:w}, {R0:v}.b[3]
+smov_x_s            | smov {W0:x}, {R0:v}.s[1]
+smov_w_b            | smov {W0:w}, {R0:v}.b[3]
+ext_16b             | ext {W0:v}.16b, {R0:v}.16b, {R1:v}.16b, #3
+zip1_16b            | zip1 {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+zip2_4s             | zip2 {W0:v}.4s, {R0:v}.4s, {R1:v}.4s
+uzp1_16b            | uzp1 {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+uzp2_4s             | uzp2 {W0:v}.4s, {R0:v}.4s, {R1:v}.4s
+trn1_16b            | trn1 {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+trn2_2d             | trn2 {W0:v}.2d, {R0:v}.2d, {R1:v}.2d
+tbl1_16b            | tbl {W0:v}.16b, {{ {R0:v}.16b }}, {R1:v}.16b | fp=i
+tbl2_16b            | tbl {W0:v}.16b, {{ v12.16b, v13.16b }}, {R2:v}.16b | fp=i
+tbl3_16b            | tbl {W0:v}.16b, {{ v12.16b, v13.16b, v14.16b }}, {R3:v}.16b | fp=i
+tbl4_16b            | tbl {W0:v}.16b, {{ v12.16b, v13.16b, v14.16b, v15.16b }}, {R0:v}.16b | fp=i nolat
+tbx1_16b            | tbx {RW0:v}.16b, {{ {R0:v}.16b }}, {R1:v}.16b | fp=i
+tbx2_16b            | tbx {RW0:v}.16b, {{ v12.16b, v13.16b }}, {R2:v}.16b | fp=i
+
+group SIMD / widening and narrowing
+for w,n in 8h:8b 4s:4h 2d:2s
+uaddl_$w            | uaddl {W0:v}.$w, {R0:v}.$n, {R1:v}.$n
+saddw_$w            | saddw {W0:v}.$w, {R0:v}.$w, {R1:v}.$n
+umull_$w            | umull {W0:v}.$w, {R0:v}.$n, {R1:v}.$n
+smlal_$w            | smlal {RW0:v}.$w, {R0:v}.$n, {R1:v}.$n
+uabdl_$w            | uabdl {W0:v}.$w, {R0:v}.$n, {R1:v}.$n
+uxtl_$w             | uxtl {W0:v}.$w, {R0:v}.$n
+sshll_$w            | sshll {W0:v}.$w, {R0:v}.$n, #3
+xtn_$n              | xtn {W0:v}.$n, {R0:v}.$w
+sqxtn_$n            | sqxtn {W0:v}.$n, {R0:v}.$w
+sqxtun_$n           | sqxtun {W0:v}.$n, {R0:v}.$w
+shrn_$n             | shrn {W0:v}.$n, {R0:v}.$w, #3
+rshrn_$n            | rshrn {W0:v}.$n, {R0:v}.$w, #3
+sqrshrn_$n          | sqrshrn {W0:v}.$n, {R0:v}.$w, #3
+addhn_$n            | addhn {W0:v}.$n, {R0:v}.$w, {R1:v}.$w
+raddhn_$n           | raddhn {W0:v}.$n, {R0:v}.$w, {R1:v}.$w
+end
+for w,f in 8h:16b 4s:8h 2d:4s
+uaddlp_$w           | uaddlp {W0:v}.$w, {R0:v}.$f
+uadalp_$w           | uadalp {RW0:v}.$w, {R0:v}.$f
+end
+xtn2_16b            | xtn2 {RW0:v}.16b, {R0:v}.8h
+uaddl2_8h           | uaddl2 {W0:v}.8h, {R0:v}.16b, {R1:v}.16b
+sqdmull_4s          | sqdmull {W0:v}.4s, {R0:v}.4h, {R1:v}.4h
+sqdmlal_4s          | sqdmlal {RW0:v}.4s, {R0:v}.4h, {R1:v}.4h
+pmull_8h            | pmull {W0:v}.8h, {R0:v}.8b, {R1:v}.8b
+pmul_16b            | pmul {W0:v}.16b, {R0:v}.16b, {R1:v}.16b
+
+group SIMD / reductions
+addv_16b            | addv {W0:b}, {R0:v}.16b
+addv_8h             | addv {W0:h}, {R0:v}.8h
+addv_4s             | addv {W0:s}, {R0:v}.4s
+umaxv_16b           | umaxv {W0:b}, {R0:v}.16b
+umaxv_4s            | umaxv {W0:s}, {R0:v}.4s
+sminv_8h            | sminv {W0:h}, {R0:v}.8h
+uaddlv_16b          | uaddlv {W0:h}, {R0:v}.16b
+uaddlv_4s           | uaddlv {W0:d}, {R0:v}.4s
+fmaxv_4s            | fmaxv {W0:s}, {R0:v}.4s | fp=s
+fminnmv_4s          | fminnmv {W0:s}, {R0:v}.4s | fp=s
+faddp_s_scalar      | faddp {W0:s}, {R0:v}.2s | fp=s
+faddp_d_scalar      | faddp {W0:d}, {R0:v}.2d
+
+group SIMD / dot product
+ext DotProd
+udot_4s             | udot {RW0:v}.4s, {R0:v}.16b, {R1:v}.16b
+sdot_4s             | sdot {RW0:v}.4s, {R0:v}.16b, {R1:v}.16b
+udot_4s_elem        | udot {RW0:v}.4s, {R0:v}.16b, {R1:v}.4b[1]
+ext I8MM
+usdot_4s            | usdot {RW0:v}.4s, {R0:v}.16b, {R1:v}.16b
+ext -
+
+group SIMD / floating point
+for T,f in 4s:s 2d:d
+fadd_$T             | fadd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fsub_$T             | fsub {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmul_$T             | fmul {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fdiv_$T             | fdiv {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmla_$T             | fmla {RW0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmls_$T             | fmls {RW0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmax_$T             | fmax {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fminnm_$T           | fminnm {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fabd_$T             | fabd {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmulx_$T            | fmulx {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+faddp_$T            | faddp {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fmaxp_$T            | fmaxp {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fabs_$T             | fabs {W0:v}.$T, {R0:v}.$T | fp=$f
+fneg_$T             | fneg {W0:v}.$T, {R0:v}.$T | fp=$f
+fsqrt_$T            | fsqrt {W0:v}.$T, {R0:v}.$T | fp=$f
+frecpe_$T           | frecpe {W0:v}.$T, {R0:v}.$T | fp=$f
+frsqrte_$T          | frsqrte {W0:v}.$T, {R0:v}.$T | fp=$f
+frecps_$T           | frecps {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+frsqrts_$T          | frsqrts {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+frintn_$T           | frintn {W0:v}.$T, {R0:v}.$T | fp=$f
+frintz_$T           | frintz {W0:v}.$T, {R0:v}.$T | fp=$f
+frintx_$T           | frintx {W0:v}.$T, {R0:v}.$T | fp=$f
+fcmeq_$T            | fcmeq {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fcmgt_$T            | fcmgt {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fcmge_$T_zero       | fcmge {W0:v}.$T, {R0:v}.$T, #0.0 | fp=$f
+facgt_$T            | facgt {W0:v}.$T, {R0:v}.$T, {R1:v}.$T | fp=$f
+fcvtzs_$T           | fcvtzs {W0:v}.$T, {R0:v}.$T | fp=$f nolat
+fcvtzu_$T           | fcvtzu {W0:v}.$T, {R0:v}.$T | fp=$f nolat
+scvtf_$T            | scvtf {W0:v}.$T, {R0:v}.$T | fp=$f nolat
+ucvtf_$T            | ucvtf {W0:v}.$T, {R0:v}.$T | fp=$f nolat
+fcvt_int_roundtrip_$T | scvtf {RW0:v}.$T, {RW0:v}.$T ; fcvtzs {RW0:v}.$T, {RW0:v}.$T | fp=i notp note="scvtf + fcvtzs, both conversions"
+end
+fmla_4s_elem        | fmla {RW0:v}.4s, {R0:v}.4s, {R1:v}.s[1] | fp=s
+fmul_2d_elem        | fmul {W0:v}.2d, {R0:v}.2d, {R1:v}.d[1]
+fmul_s_elem_scalar  | fmul {W0:s}, {R0:s}, {R1:v}.s[1] | fp=s
+fcvtn_2s            | fcvtn {W0:v}.2s, {R0:v}.2d | nolat
+fcvtl_2d            | fcvtl {W0:v}.2d, {R0:v}.2s | fp=s nolat
+fcvtl_fcvtn_roundtrip | fcvtn {W0:v}.2s, {RW1:v}.2d ; fcvtl {RW1:v}.2d, {W0:v}.2s | notp chain=RW1 note="2d -> 2s -> 2d"
+ext FP16
+fadd_8h             | fadd {W0:v}.8h, {R0:v}.8h, {R1:v}.8h | fp=h
+fmul_8h             | fmul {W0:v}.8h, {R0:v}.8h, {R1:v}.8h | fp=h
+fmla_8h             | fmla {RW0:v}.8h, {R0:v}.8h, {R1:v}.8h | fp=h
+fdiv_8h             | fdiv {W0:v}.8h, {R0:v}.8h, {R1:v}.8h | fp=h
+fsqrt_8h            | fsqrt {W0:v}.8h, {R0:v}.8h | fp=h
+ext FCMA
+fcadd_4s            | fcadd {W0:v}.4s, {R0:v}.4s, {R1:v}.4s, #90 | fp=s
+fcmla_4s            | fcmla {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s, #90 | fp=s
+fcmla_2d            | fcmla {RW0:v}.2d, {R0:v}.2d, {R1:v}.2d, #0
+ext FHM
+fmlal_4s            | fmlal {RW0:v}.4s, {R0:v}.4h, {R1:v}.4h | fp=h
+ext BF16
+bfdot_4s            | bfdot {RW0:v}.4s, {R0:v}.8h, {R1:v}.8h | fp=s
+bfmmla_4s           | bfmmla {RW0:v}.4s, {R0:v}.8h, {R1:v}.8h | fp=s
+bfcvtn_4h           | bfcvtn {W0:v}.4h, {R0:v}.4s | fp=s nolat
+bfcvt_h_s           | bfcvt {W0:h}, {R0:s} | fp=s nolat
+ext -

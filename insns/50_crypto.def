@@ -1,0 +1,43 @@
+# Cryptographic extensions.
+
+group Crypto / AES
+ext AES
+aese                | aese {RW0:v}.16b, {R0:v}.16b
+aesd                | aesd {RW0:v}.16b, {R0:v}.16b
+aesmc               | aesmc {W0:v}.16b, {R0:v}.16b
+aesimc              | aesimc {W0:v}.16b, {R0:v}.16b
+aes_round_enc       | aese {RW0:v}.16b, {R0:v}.16b ; aesmc {RW0:v}.16b, {RW0:v}.16b | note="one full AES round (a fused pair on several cores)"
+aes_round_dec       | aesd {RW0:v}.16b, {R0:v}.16b ; aesimc {RW0:v}.16b, {RW0:v}.16b | note="one full AES decryption round"
+aes_round_enc_split | aese {RW0:v}.16b, {R0:v}.16b ; nop ; aesmc {RW0:v}.16b, {RW0:v}.16b | note="the same round with a nop between the pair"
+
+group Crypto / polynomial multiply
+ext PMULL
+pmull_1q            | pmull {W0:v}.1q, {R0:v}.1d, {R1:v}.1d
+pmull2_1q           | pmull2 {W0:v}.1q, {R0:v}.2d, {R1:v}.2d
+
+group Crypto / SHA-1 and SHA-2
+ext SHA1
+sha1c               | sha1c {RW0:q}, {R0:s}, {R1:v}.4s
+sha1p               | sha1p {RW0:q}, {R0:s}, {R1:v}.4s
+sha1m               | sha1m {RW0:q}, {R0:s}, {R1:v}.4s
+sha1h               | sha1h {W0:s}, {R0:s}
+sha1su0             | sha1su0 {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s
+sha1su1             | sha1su1 {RW0:v}.4s, {R0:v}.4s
+ext SHA256
+sha256h             | sha256h {RW0:q}, {R0:q}, {R1:v}.4s
+sha256h2            | sha256h2 {RW0:q}, {R0:q}, {R1:v}.4s
+sha256su0           | sha256su0 {RW0:v}.4s, {R0:v}.4s
+sha256su1           | sha256su1 {RW0:v}.4s, {R0:v}.4s, {R1:v}.4s
+ext SHA512
+sha512h             | sha512h {RW0:q}, {R0:q}, {R1:v}.2d
+sha512h2            | sha512h2 {RW0:q}, {R0:q}, {R1:v}.2d
+sha512su0           | sha512su0 {RW0:v}.2d, {R0:v}.2d
+sha512su1           | sha512su1 {RW0:v}.2d, {R0:v}.2d, {R1:v}.2d
+
+group Crypto / SHA-3
+ext SHA3
+eor3                | eor3 {W0:v}.16b, {R0:v}.16b, {R1:v}.16b, {R2:v}.16b
+bcax                | bcax {W0:v}.16b, {R0:v}.16b, {R1:v}.16b, {R2:v}.16b
+rax1                | rax1 {W0:v}.2d, {R0:v}.2d, {R1:v}.2d
+xar                 | xar {W0:v}.2d, {R0:v}.2d, {R1:v}.2d, #5
+ext -

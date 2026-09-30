@@ -1,0 +1,50 @@
+# Atomics (LSE, exclusives, RCPC) and pointer authentication.
+
+group Atomics / LSE
+ext LSE
+# "_same": every instance uses one address, so each operation depends on the
+# previous one through memory and the rate is the memory-to-memory latency.
+# Without the suffix, eight addresses one cache line apart are used in turn.
+for op in ldadd ldclr ldeor ldset ldsmax ldumin swp
+$op_x               | $op {R0:x}, {W0:x}, [{R1:x}] | ptr=R1 nolat
+$op_x_same          | $op {R0:x}, {W0:x}, [{A0}] | nolat serial
+end
+ldadd_w             | ldadd {R0:w}, {W0:w}, [{R1:x}] | ptr=R1 nolat
+ldaddb              | ldaddb {R0:w}, {W0:w}, [{R1:x}] | ptr=R1 nolat
+ldaddal_x           | ldaddal {R0:x}, {W0:x}, [{R1:x}] | ptr=R1 nolat
+ldadd_x_discard     | ldadd {R0:x}, xzr, [{R1:x}] | ptr=R1 nolat note="stadd: result discarded"
+cas_x               | cas {RW0:x}, {R0:x}, [{R1:x}] | ptr=R1 nolat
+cas_x_same          | cas {RW0:x}, {R0:x}, [{A0}] | nolat serial
+casal_x             | casal {RW0:x}, {R0:x}, [{R1:x}] | ptr=R1 nolat
+casp_x_same         | casp x0, x1, x2, x3, [{A0}] | nolat serial tpk=4
+ext -
+
+group Atomics / exclusives and ordered access
+ldxr_stxr           | ldxr {W0:x}, [{A0}] ; stxr {W1:w}, {R0:x}, [{A0}] | nolat serial
+ldaxr_stlxr         | ldaxr {W0:x}, [{A0}] ; stlxr {W1:w}, {R0:x}, [{A0}] | nolat serial
+ldar_x              | ldar {W0:x}, [{A0}] | cell=A0:0
+stlr_x              | stlr {R0:x}, [{A0}]
+ext RCPC
+ldapr_x             | ldapr {W0:x}, [{A0}] | cell=A0:0
+ext RCPC2
+ldapur_x            | ldapur {W0:x}, [{A0}, #8] | cell=A0:8
+stlur_x             | stlur {R0:x}, [{A0}, #8]
+ext -
+
+group Pointer authentication
+ext PAuth
+# Whether these sign anything depends on the process: in a plain arm64
+# process the kernel leaves the A/B keys disabled and the instructions pass
+# the pointer through.  The run-time probe "pac" reports which it was.
+for k in ia ib da db
+pac$k               | pac$k {RW0:x}, {R0:x}
+pac$k_aut$k         | pac$k {RW0:x}, {R0:x} ; aut$k {RW0:x}, {R0:x} | note="sign, then authenticate"
+end
+paciza              | paciza {RW0:x}
+pacdza              | pacdza {RW0:x}
+xpaci               | xpaci {RW0:x}
+xpacd               | xpacd {RW0:x}
+pacga               | pacga {W0:x}, {R0:x}, {R1:x}
+pacia1716           | pacia1716 | tpk=1 nolat serial note="implicit x17, x16"
+xpaclri             | xpaclri | tpk=1 nolat serial note="implicit x30; NOP-space encoding"
+ext -
