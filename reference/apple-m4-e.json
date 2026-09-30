@@ -1,0 +1,19 @@
+{
+  "chip": "M4 E-core",
+  "source": "Jiajie Chen, \"Apple M4 microarchitecture\" (cpu-micro-benchmarks; kpc counters, root required on macOS)",
+  "url": "https://jia.je/hardware/2025/05/21/apple-m4/",
+  "core": "E",
+  "structure": {
+    "width": {"value": "5"},
+    "units_alu": {"value": "4"},
+    "units_load": {"value": "2"},
+    "units_store": {"value": "1"},
+    "units_fp_add": {"value": "3"},
+    "units_branch_taken": {"value": "1"},
+    "rob_nop": {"value": "~513", "note": "~121 groups"},
+    "l1d_size": {"value": "64 KiB"},
+    "l1_latency": {"value": "3"},
+    "dtlb_l1": {"value": "192"},
+    "dtlb_l2": {"value": "1024"}
+  }
+}

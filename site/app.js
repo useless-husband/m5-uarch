@@ -192,6 +192,11 @@
       body.appendChild(tr);
     });
     $("refhead").textContent = anyRef ? "Published for other chips" : "";
+    var src = $("refsrc");
+    src.textContent = "";
+    (DATA.references || []).forEach(function (r) {
+      src.appendChild(el("li", {}, [document.createTextNode(r.chip + ": " + r.source + ", "), el("a", { href: r.url, text: r.url })]));
+    });
   }
 
   var rows = [];

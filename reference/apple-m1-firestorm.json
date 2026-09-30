@@ -1,0 +1,18 @@
+{
+  "chip": "M1 P-core (Firestorm)",
+  "source": "Dougall Johnson, \"Apple M1 Firestorm microarchitecture\" (measured with kernel PMU counters)",
+  "url": "https://dougallj.github.io/applecpu/firestorm.html",
+  "structure": {
+    "width": {"value": "8"},
+    "units_alu": {"value": "6"},
+    "units_fp_add": {"value": "4"},
+    "units_branch_taken": {"value": "1"},
+    "rob_nop": {"value": "~2310", "note": "~330 retire groups of up to 7"},
+    "prf_int": {"value": "~350-360", "note": "file of ~380-394 less 31 architectural"},
+    "prf_fp": {"value": "~400", "note": "file of ~432 less 32 architectural"},
+    "prf_flags": {"value": "~128"},
+    "lq": {"value": "~130"},
+    "sq": {"value": "~60"},
+    "branches": {"value": "~144"}
+  }
+}

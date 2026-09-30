@@ -1,0 +1,20 @@
+{
+  "chip": "M4 P-core",
+  "source": "Jiajie Chen, \"Apple M4 microarchitecture\" (cpu-micro-benchmarks; kpc counters, root required on macOS)",
+  "url": "https://jia.je/hardware/2025/05/21/apple-m4/",
+  "structure": {
+    "width": {"value": "10"},
+    "units_alu": {"value": "8"},
+    "units_load": {"value": "3"},
+    "units_store": {"value": "2"},
+    "units_fp_add": {"value": "4"},
+    "units_branch_taken": {"value": "2"},
+    "rob_nop": {"value": "~3184", "note": "~313 groups"},
+    "prf_int": {"value": "~360", "note": "64-bit writes"},
+    "prf_flags": {"value": "~175"},
+    "l1d_size": {"value": "128 KiB"},
+    "l1_latency": {"value": "3"},
+    "dtlb_l1": {"value": "160"},
+    "dtlb_l2": {"value": "3072"}
+  }
+}

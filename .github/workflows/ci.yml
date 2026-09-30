@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    # The tool is macOS/arm64 only.  GitHub's macOS runners are virtual
+    # machines that expose no cycle counters, so the measurement tests print
+    # why and skip (exit status 77); everything else runs for real: the
+    # generator, the assembler-encoded instruction table, the encoder
+    # cross-check, generated code executed under the fault guard.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          cc --version
+          python3 --version
+          sysctl -n machdep.cpu.brand_string
+          uname -m
+      - name: Build
+        run: make -j4
+      - name: What this runner exposes
+        run: build/uarch info || test $? -eq 77
+      - name: Test
+        run: make test
+      - name: Lint
+        run: make lint
+      - name: Site data matches the committed results
+        run: |
+          make site
+          git diff --exit-code site/data.js
