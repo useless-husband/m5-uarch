@@ -70,7 +70,11 @@ static void pressure(ua_exp_list *out, int level, const pair_def *p)
     double best = NAN, best_adj = NAN, best_sep = NAN;
     unsigned best_k = 0;
     for (unsigned k = 1; k <= 9; k++) {
-        double adj = block_rate(p, k, 1, level), sep = block_rate(p, k, 0, level);
+        double adj = NAN, sep = NAN;
+        for (int attempt = 0; attempt < 3 && (isnan(adj) || isnan(sep)); attempt++) {
+            adj = block_rate(p, k, 1, level);
+            sep = block_rate(p, k, 0, level);
+        }
         if (isnan(adj) || isnan(sep))
             continue;
         double ratio = adj / sep;
