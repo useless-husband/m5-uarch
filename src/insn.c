@@ -17,7 +17,7 @@
  * sites walks the whole cycle instead of a short sub-sequence that a value
  * predictor could learn. */
 #define CYCLE_NODES 509
-#define CYCLE_NODES_BYTE 251
+#define CYCLE_NODES_BYTE 127 /* also fits a sign-extending byte load */
 #define CYCLE_SPACING 64
 
 int ua_insns_verify(char *err, size_t errsz)

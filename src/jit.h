@@ -35,8 +35,12 @@ int ua_jit_init(void);
 /* Capacity in instruction words. */
 size_t ua_jit_capacity(void);
 
-/* Start writing a new function at the beginning of the arena. */
+/* Start writing a new function at the beginning of the arena, or at a
+ * chosen word offset.  A different offset gives the code addresses that no
+ * earlier test has used, which matters when a predictor's history is part
+ * of what is being measured. */
 void ua_jit_begin(void);
+void ua_jit_begin_at(size_t word_offset);
 /* Append words.  Writes past capacity set an overflow flag instead. */
 void ua_jit_put(uint32_t w);
 void ua_jit_put_n(const uint32_t *w, size_t n);
@@ -74,6 +78,7 @@ const void *ua_jit_loop(const uint32_t *init, size_t n_init,
 /* Same, for a body already written in the arena between ua_jit_loop_open()
  * and ua_jit_loop_close(). */
 void ua_jit_loop_open(const uint32_t *init, size_t n_init);
+void ua_jit_loop_open_at(size_t word_offset, const uint32_t *init, size_t n_init);
 const void *ua_jit_loop_close(const uint32_t *fini, size_t n_fini);
 
 /* Scratch memory ------------------------------------------------------------

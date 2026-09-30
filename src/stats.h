@@ -29,15 +29,16 @@ int ua_linfit(const double *x, const double *y, size_t n, double *a, double *b);
 
 /*
  * Step detection for capacity experiments: y is roughly `lo` while x is below
- * a capacity and roughly `hi` above it.
+ * a capacity and roughly `hi` above it (it may sag again far above it).
  *
- *   found     1 if hi/lo contrast reached `min_ratio`
- *   last_lo   largest x whose y is still below the midpoint
- *   first_hi  next x after it (the capacity lies in (last_lo, first_hi])
- *   lo, hi    plateau estimates (10th / 90th percentile of y)
+ *   found     1 if hi/lo contrast reached `min_ratio` and a step was located
+ *   last_lo   x of the last point before the step
+ *   first_hi  x of the first point on the high side (the capacity lies in
+ *             (last_lo, first_hi])
+ *   lo, hi    plateau estimates (lower quartile / second largest y)
  *
- * Noise in these experiments only ever adds time, so the scan runs from the
- * right: one slow outlier on the low plateau cannot move the result.
+ * x must be ascending.  A point counts as the step only if at least two of
+ * the following three are high too, so a single outlier cannot fake it.
  */
 typedef struct {
     int found;

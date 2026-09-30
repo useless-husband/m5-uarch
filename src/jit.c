@@ -11,7 +11,8 @@
 #define ARENA_BYTES (8u * 1024u * 1024u)
 
 static uint32_t *g_arena;
-static size_t g_pos;
+static size_t g_base; /* function start, in words from the arena start */
+static size_t g_pos;  /* words written since g_base */
 static int g_overflow;
 static size_t g_loop_top;
 static uint8_t *g_scratch;
@@ -39,10 +40,13 @@ int ua_jit_init(void)
     return 0;
 }
 
-size_t ua_jit_capacity(void) { return ARENA_BYTES / 4; }
+size_t ua_jit_capacity(void) { return ARENA_BYTES / 4 - g_base; }
 
-void ua_jit_begin(void)
+void ua_jit_begin(void) { ua_jit_begin_at(0); }
+
+void ua_jit_begin_at(size_t word_offset)
 {
+    g_base = word_offset < ARENA_BYTES / 4 ? word_offset : 0;
     g_pos = 0;
     g_overflow = 0;
     pthread_jit_write_protect_np(0);
@@ -50,11 +54,11 @@ void ua_jit_begin(void)
 
 void ua_jit_put(uint32_t w)
 {
-    if (g_pos >= ARENA_BYTES / 4) {
+    if (g_base + g_pos >= ARENA_BYTES / 4) {
         g_overflow = 1;
         return;
     }
-    g_arena[g_pos++] = w;
+    g_arena[g_base + g_pos++] = w;
 }
 
 void ua_jit_put_n(const uint32_t *w, size_t n)
@@ -68,10 +72,10 @@ size_t ua_jit_pos(void) { return g_pos; }
 void ua_jit_patch(size_t pos, uint32_t w)
 {
     if (pos < g_pos)
-        g_arena[pos] = w;
+        g_arena[g_base + pos] = w;
 }
 
-uint32_t ua_jit_peek(size_t pos) { return pos < g_pos ? g_arena[pos] : 0; }
+uint32_t ua_jit_peek(size_t pos) { return pos < g_pos ? g_arena[g_base + pos] : 0; }
 
 void ua_jit_align(size_t words)
 {
@@ -84,13 +88,18 @@ const void *ua_jit_end(void)
     pthread_jit_write_protect_np(1);
     if (g_overflow)
         return NULL;
-    sys_icache_invalidate(g_arena, g_pos * 4);
-    return g_arena;
+    sys_icache_invalidate(g_arena + g_base, g_pos * 4);
+    return g_arena + g_base;
 }
 
 void ua_jit_loop_open(const uint32_t *init, size_t n_init)
 {
-    ua_jit_begin();
+    ua_jit_loop_open_at(0, init, n_init);
+}
+
+void ua_jit_loop_open_at(size_t word_offset, const uint32_t *init, size_t n_init)
+{
+    ua_jit_begin_at(word_offset);
     ua_jit_put_n(init, n_init);
     ua_jit_align(16);
     g_loop_top = ua_jit_pos();

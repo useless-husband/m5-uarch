@@ -154,21 +154,34 @@ ua_step ua_find_step(const double *x, const double *y, size_t n, double min_rati
     double *c = dup_sorted(y, n);
     if (!c)
         return s;
-    s.lo = ua_quantile_sorted(c, n, 0.10);
-    s.hi = ua_quantile_sorted(c, n, 0.90);
+    /* Low plateau: the lower quartile.  High plateau: the second largest
+     * value, so that a capacity near the end of the scanned range (few high
+     * points) is still found while one outlier is ignored. */
+    s.lo = ua_quantile_sorted(c, n, 0.25);
+    s.hi = c[n - 2];
     free(c);
     if (!(s.lo > 0) || s.hi / s.lo < min_ratio)
         return s;
     double mid = 0.5 * (s.lo + s.hi);
-    /* Walk from the right to the last point still on the low plateau. */
-    size_t i = n;
-    while (i > 0 && y[i - 1] >= mid)
-        i--;
-    if (i == 0 || i == n)
-        return s; /* everything high, or everything low: no step inside the range */
-    s.found = 1;
-    s.last_lo = x[i - 1];
-    s.first_hi = x[i];
+    /* The step is the first point at or above the midpoint that is followed
+     * by more of the same: at least two of the next three points (as many
+     * as exist) must be high as well, so that one slow outlier on the low
+     * plateau is not mistaken for the step. */
+    for (size_t i = 1; i < n; i++) {
+        if (y[i] < mid)
+            continue;
+        size_t next = 0, high = 0;
+        for (size_t k = i + 1; k < n && k <= i + 3; k++) {
+            next++;
+            high += y[k] >= mid;
+        }
+        if (next == 0 || high * 3 >= next * 2) {
+            s.found = 1;
+            s.last_lo = x[i - 1];
+            s.first_hi = x[i];
+            return s;
+        }
+    }
     return s;
 }
 

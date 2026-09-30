@@ -151,6 +151,14 @@ typedef struct {
 } run_sample;
 
 static int g_flip_nzcv;
+static uint32_t g_carry;
+
+static void carry_regs(ua_regs *regs)
+{
+    for (int i = 0; g_carry >> i; i++)
+        if (i < 31 && (g_carry >> i & 1))
+            regs->x[i] = regs->out_x[i];
+}
 
 /* One counted run.  Assumes the fault guard is armed by the caller. */
 static run_sample counted_run(const void *code, ua_regs *regs, uint64_t n)
@@ -169,6 +177,7 @@ static run_sample counted_run(const void *code, ua_regs *regs, uint64_t n)
     ua_tramp(code, regs, n);
     ua_counters_read(&b);
     s.ticks = mach_absolute_time() - t0;
+    carry_regs(regs);
     int nl = ua_counters_nlevels(), active = -1, nactive = 0;
     for (int i = 0; i < nl; i++) {
         if (b.cyc[i] != a.cyc[i] || b.ins[i] != a.ins[i]) {
@@ -187,6 +196,7 @@ static run_sample counted_run(const void *code, ua_regs *regs, uint64_t n)
 
 typedef struct {
     double cyc[2][256];
+    double ns[2][256];
     double ghz[256];
     size_t n[2];
     size_t nghz;
@@ -234,11 +244,11 @@ static void select_clean(const run_sample *s[2], int runs, int want_level, int *
                 cs->disturbed++;
                 continue;
             }
+            double ns = (double)s[k][r].ticks * g_tb.numer / g_tb.denom;
+            cs->ns[k][cs->n[k]] = ns;
             cs->cyc[k][cs->n[k]++] = (double)s[k][r].cyc;
-            if (k == 1 && s[k][r].ticks) {
-                double ns = (double)s[k][r].ticks * g_tb.numer / g_tb.denom;
+            if (k == 1 && s[k][r].ticks)
                 cs->ghz[cs->nghz++] = (double)s[k][r].cyc / ns;
-            }
         }
     }
 }
@@ -286,8 +296,10 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     g_guard_armed = 1;
 
     g_flip_nzcv = o.flip_nzcv;
+    g_carry = o.carry;
     /* Warm up: code, predictors, caches, and the frequency governor. */
     ua_tramp(code, regs, 64);
+    carry_regs(regs);
     uint64_t n1 = o.n1;
     if (!n1) {
         run_sample a = counted_run(code, regs, 64);
@@ -301,6 +313,7 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     uint64_t n2 = 2 * n1;
     m.n1 = n1;
     ua_tramp(code, regs, n1);
+    carry_regs(regs);
 
     int level = -1;
     while (runs < o.max_runs) {
@@ -345,6 +358,8 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     m.cyc_min = (ua_min(cs.cyc[1], cs.n[1]) - ua_min(cs.cyc[0], cs.n[0])) / dn;
     m.ins = (double)(cs.ref[1] - cs.ref[0]) / dn;
     m.ghz = cs.nghz ? ua_median(cs.ghz, cs.nghz) : 0;
+    m.ns = (ua_median(cs.ns[1], cs.n[1]) - ua_median(cs.ns[0], cs.n[0])) / dn;
+    m.ns_min = (ua_min(cs.ns[1], cs.n[1]) - ua_min(cs.ns[0], cs.n[0])) / dn;
 
     ua_sort(cs.cyc[0], cs.n[0]);
     ua_sort(cs.cyc[1], cs.n[1]);
@@ -369,4 +384,65 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     return m;
 }
 
+ua_sample ua_run_counted(const void *code, ua_regs *regs, uint64_t iters)
+{
+    ua_sample out = {-1, 0, 0, 0, 0};
+    if (sigsetjmp(g_jmp, 1)) {
+        g_guard_armed = 0;
+        out.level = -1;
+        out.fault_sig = g_fault_sig;
+        return out;
+    }
+    g_guard_armed = 1;
+    g_flip_nzcv = 0;
+    g_carry = 0;
+    run_sample s = counted_run(code, regs, iters);
+    g_guard_armed = 0;
+    out.level = s.level;
+    out.cyc = s.cyc;
+    out.ins = s.ins;
+    out.ns = (double)s.ticks * g_tb.numer / g_tb.denom;
+    return out;
+}
+
+double ua_freq_settle(int budget_ms)
+{
+    if (!g_tb.denom)
+        mach_timebase_info(&g_tb);
+    uint64_t start = mach_absolute_time();
+    uint64_t budget = (uint64_t)budget_ms * 1000000ull * g_tb.denom / g_tb.numer;
+    double prev = 0, ghz = 0;
+    int stable = 0;
+    volatile uint64_t sink = 0;
+    while (mach_absolute_time() - start < budget) {
+        ua_counts a, b;
+        uint64_t t0 = mach_absolute_time();
+        ua_counters_read(&a);
+        for (int i = 0; i < 2000000; i++)
+            sink += (uint64_t)i * 2654435761u;
+        ua_counters_read(&b);
+        double ns = (double)(mach_absolute_time() - t0) * g_tb.numer / g_tb.denom;
+        uint64_t cyc = 0;
+        for (int i = 0; i < ua_counters_nlevels(); i++)
+            cyc += b.cyc[i] - a.cyc[i];
+        ghz = ns > 0 ? (double)cyc / ns : 0;
+        /* Stable: three consecutive windows within 2 % of each other. */
+        if (prev > 0 && ghz > prev * 0.98 && ghz < prev * 1.02) {
+            if (++stable >= 3)
+                break;
+        } else {
+            stable = 0;
+        }
+        prev = ghz;
+    }
+    return ghz;
+}
+
 ua_run_totals ua_measure_totals(void) { return g_totals; }
+
+void ua_measure_account(uint64_t clean, uint64_t migrated, uint64_t disturbed)
+{
+    g_totals.clean += clean;
+    g_totals.migrated += migrated;
+    g_totals.disturbed += disturbed;
+}

@@ -41,6 +41,9 @@ typedef struct {
     uint64_t expect_ins;    /* instructions per iteration (0 = do not check)  */
     int flip_nzcv;          /* before every counted run, execute a few
                                iterations with NZCV inverted (uncounted)      */
+    uint32_t carry;         /* bit i: x[i] continues from its value at the end
+                               of the previous run (pointer chases that must
+                               not revisit what is already cached)            */
 } ua_mopts;
 
 typedef struct {
@@ -50,6 +53,8 @@ typedef struct {
     double spread;   /* (IQR at n + IQR at 2n) / (median difference)           */
     double ins;      /* instructions per iteration                             */
     double ghz;      /* cycles per nanosecond observed during the clean runs   */
+    double ns;       /* nanoseconds per iteration, median-based (wall clock)   */
+    double ns_min;   /* nanoseconds per iteration, minimum-based               */
     int level;       /* performance level the clean runs executed on           */
     int clean;       /* clean runs at 2n                                       */
     int runs;        /* pairs attempted                                        */
@@ -76,10 +81,30 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts);
 /* Run `code` once under the fault guard.  Returns 0, or the signal number. */
 int ua_run_guarded(const void *code, ua_regs *regs, uint64_t iters);
 
+/* One counted run, for experiments that need their own sampling plan (for
+ * example alternating two loops so that both see the same clock frequency). */
+typedef struct {
+    int level;       /* performance level it ran on, -1 if split or faulted   */
+    int fault_sig;   /* non-zero if the code raised a signal                  */
+    uint64_t cyc;    /* cycles, including the fixed entry/exit overhead       */
+    uint64_t ins;    /* instructions, likewise                                */
+    double ns;       /* wall-clock nanoseconds                                */
+} ua_sample;
+
+ua_sample ua_run_counted(const void *code, ua_regs *regs, uint64_t iters);
+
+/* Keep the thread busy until the cluster's clock frequency stops changing
+ * (at most `budget_ms`).  Returns the frequency in GHz.  Cycle counts do not
+ * depend on the frequency, but anything that involves memory does: a cache
+ * miss lasts a fixed time, not a fixed number of cycles. */
+double ua_freq_settle(int budget_ms);
+
 /* Totals since start, for the run summary. */
 typedef struct {
     uint64_t runs, clean, migrated, disturbed;
 } ua_run_totals;
 ua_run_totals ua_measure_totals(void);
+/* For experiments that classify their own runs (ua_run_counted). */
+void ua_measure_account(uint64_t clean, uint64_t migrated, uint64_t disturbed);
 
 #endif
