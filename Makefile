@@ -55,6 +55,56 @@ $(BUILD)/insns_gen.o: $(BUILD)/insns_gen.c $(HDRS)
 $(BUILD)/uarch: $(APP_OBJ) $(LIB_OBJ) $(GEN_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
+# ---- tests ---------------------------------------------------------------
+TESTS := $(BUILD)/test_stats $(BUILD)/test_json $(BUILD)/test_enc $(BUILD)/test_jit \
+         $(BUILD)/test_measure
+
+$(BUILD)/test_stats: tests/test_stats.c tests/check.h $(BUILD)/stats.o
+	$(CC) $(CFLAGS) $(WARN) -Isrc -o $@ $< $(BUILD)/stats.o
+
+$(BUILD)/test_json: tests/test_json.c tests/check.h $(BUILD)/json.o
+	$(CC) $(CFLAGS) $(WARN) -Isrc -o $@ $< $(BUILD)/json.o
+
+# Encoder cross-check: enc_gen prints each encoder's output next to the same
+# instruction as text; the assembler encodes the text; enc_check compares.
+$(BUILD)/enc_gen: tests/enc_gen.c src/enc.h | $(BUILD)
+	$(CC) $(CFLAGS) $(WARN) -Isrc -o $@ $<
+$(BUILD)/enc_cases.S: $(BUILD)/enc_gen
+	$(BUILD)/enc_gen $(BUILD)/enc_cases.S $(BUILD)/enc_cases.inc
+$(BUILD)/test_enc: tests/enc_check.c tests/check.h $(BUILD)/enc_cases.S
+	$(CC) $(CFLAGS) $(WARN) -Isrc -I$(BUILD) -o $@ tests/enc_check.c $(BUILD)/enc_cases.S
+
+$(BUILD)/test_jit: tests/test_jit.c tests/check.h $(LIB_OBJ) $(GEN_OBJ)
+	$(CC) $(CFLAGS) $(WARN) -Isrc -o $@ $< $(LIB_OBJ) $(GEN_OBJ)
+
+$(BUILD)/test_measure: tests/test_measure.c tests/check.h $(LIB_OBJ) $(GEN_OBJ)
+	$(CC) $(CFLAGS) $(WARN) -Isrc -o $@ $< $(LIB_OBJ) $(GEN_OBJ)
+
+# Exit status 77 means "skipped for a stated reason" (no counters in a VM).
+test: all $(TESTS)
+	@fail=0; for t in $(TESTS); do \
+	    $$t; rc=$$?; \
+	    if [ $$rc -eq 77 ]; then echo "$$t: skipped"; \
+	    elif [ $$rc -ne 0 ]; then echo "$$t: FAILED ($$rc)"; fail=1; fi; \
+	done; \
+	$(PYTHON) -W error -m unittest -q tests/test_tools.py || fail=1; \
+	UARCH=$(BUILD)/uarch PYTHON=$(PYTHON) sh tests/smoke.sh; rc=$$?; \
+	if [ $$rc -ne 0 ] && [ $$rc -ne 77 ]; then fail=1; fi; \
+	if [ $$fail -ne 0 ]; then echo "TESTS FAILED"; exit 1; fi; echo "all tests passed"
+
+# ---- lint ----------------------------------------------------------------
+lint:
+	@mkdir -p $(BUILD)/lint
+	$(MAKE) BUILD=$(BUILD)/lint CFLAGS="-O2 -Werror" all $(TESTS:$(BUILD)/%=$(BUILD)/lint/%)
+	$(CC) --analyze -Xanalyzer -analyzer-output=text -Isrc $(LIB_SRC) $(APP_SRC) 2>&1 | \
+	    (! grep -E "warning|error") || (echo "static analyser reported problems" && exit 1)
+	$(PYTHON) -W error -m py_compile tools/gen_insns.py tools/uarch_results.py tests/test_tools.py
+
+# The README's headline numbers, straight from the tool.
+bench: $(BUILD)/uarch
+	$(BUILD)/uarch selftest
+	$(BUILD)/uarch structure -e width,window,elim
+
 # ---- measuring and publishing -------------------------------------------
 # One command for any Apple Silicon Mac: `make measure`.
 CHIP ?= $(shell sysctl -n machdep.cpu.brand_string | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$$//')

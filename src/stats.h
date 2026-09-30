@@ -35,7 +35,7 @@ int ua_linfit(const double *x, const double *y, size_t n, double *a, double *b);
  *   last_lo   x of the last point before the step
  *   first_hi  x of the first point on the high side (the capacity lies in
  *             (last_lo, first_hi])
- *   lo, hi    plateau estimates (lower quartile / second largest y)
+ *   lo, hi    plateau estimates (second smallest / second largest y)
  *
  * x must be ascending.  A point counts as the step only if at least two of
  * the following three are high too, so a single outlier cannot fake it.

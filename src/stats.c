@@ -154,10 +154,10 @@ ua_step ua_find_step(const double *x, const double *y, size_t n, double min_rati
     double *c = dup_sorted(y, n);
     if (!c)
         return s;
-    /* Low plateau: the lower quartile.  High plateau: the second largest
-     * value, so that a capacity near the end of the scanned range (few high
-     * points) is still found while one outlier is ignored. */
-    s.lo = ua_quantile_sorted(c, n, 0.25);
+    /* Plateaus: the second smallest and second largest value.  A capacity
+     * near either end of the scanned range (few points on one side) is
+     * still found, and one outlier on either side is ignored. */
+    s.lo = c[1];
     s.hi = c[n - 2];
     free(c);
     if (!(s.lo > 0) || s.hi / s.lo < min_ratio)
