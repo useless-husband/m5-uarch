@@ -103,7 +103,7 @@ lint:
 # The README's headline numbers, straight from the tool.
 bench: $(BUILD)/uarch
 	$(BUILD)/uarch selftest
-	$(BUILD)/uarch structure -e width,window,elim
+	$(BUILD)/uarch structure
 
 # ---- measuring and publishing -------------------------------------------
 # One command for any Apple Silicon Mac: `make measure`.

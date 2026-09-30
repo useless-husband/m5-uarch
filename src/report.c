@@ -271,14 +271,14 @@ void ua_report_print_insn(const ua_insn_result *r, FILE *f)
 void ua_report_print_exp(const ua_exp_result *e, FILE *f)
 {
     if (e->status == UA_EXP_FAILED) {
-        fprintf(f, "  %-20s failed: %s\n", e->id, e->note);
+        fprintf(f, "  %-28s failed: %s\n", e->id, e->note);
         return;
     }
     if (e->status == UA_EXP_INCONCLUSIVE) {
-        fprintf(f, "  %-20s inconclusive: %s\n", e->id, e->note);
+        fprintf(f, "  %-28s inconclusive: %s\n", e->id, e->note);
         return;
     }
-    fprintf(f, "  %-20s %9.2f %-10s", e->id, e->value, e->unit);
+    fprintf(f, "  %-28s %9.2f %-10s", e->id, e->value, e->unit);
     if (!isnan(e->lo) && !isnan(e->hi) && e->lo != e->hi)
         fprintf(f, " [%.2f .. %.2f]", e->lo, e->hi);
     fprintf(f, "  (%s)  %s\n", e->confidence, e->title);
