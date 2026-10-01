@@ -5,6 +5,8 @@
   "structure": {
     "width": {"value": "8"},
     "units_alu": {"value": "6"},
+    "units_flags": {"value": "3", "note": "integer units 1-3 set flags"},
+    "units_mul": {"value": "2", "note": "integer units 5 and 6"},
     "units_fp_add": {"value": "4"},
     "units_branch_taken": {"value": "1"},
     "rob_nop": {"value": "~2310", "note": "~330 retire groups of up to 7"},
