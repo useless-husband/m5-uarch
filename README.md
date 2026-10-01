@@ -38,25 +38,25 @@ the runs disagreed. "Published" columns quote other people's measurements of oth
 | Loads / stores per cycle | 3 / 2 | 2 / 1 | 3 / 2, 2 / 1 | |
 | FP/SIMD units | 4 | 3 | 4 / 3 | 4 |
 | Taken branches per cycle | 2 | 1 | 2 / 1 | 1 |
-| Reorder buffer, in NOPs | 3367 | 1069 | ~3184 / ~513 | ~2310 |
-| Reorder buffer, blend of ordinary instructions | 1330 | 466–487 | | |
-| Integer renames in flight (64-bit / 32-bit writes) | 396 / 812 | 185 / 185 | ~360 / ~720 | ~350–360 |
-| FP/SIMD renames in flight | 837 | 202 | | ~400 |
-| Flag renames in flight | 167 | 73 | ~175 | ~128 |
+| Reorder buffer, in NOPs | 3367 | 1072 | ~3184 / ~513 | ~2310 |
+| Reorder buffer, blend of ordinary instructions | 1330 | 433–486 | | |
+| Integer renames in flight (64-bit / 32-bit writes) | 396 / 812 | 184 / 185 | ~360 / ~720 | ~350–360 |
+| FP/SIMD renames in flight | 839 | 202 | | ~400 |
+| Flag renames in flight | 168 | 73 | ~175 | ~128 |
 | Loads in flight | 486 | 65 | | ~130 |
 | Stores in flight | 137 | 55 | | ~60 |
 | Unresolved branches in flight | 194 | 73 | | ~144 |
-| Branch misprediction penalty, cycles | 16.7 | 11.8 | | |
+| Branch misprediction penalty, cycles | 16.8 | 11.9 | | |
 | L1D capacity / load-to-use latency | 128 KiB / 3 | 64 KiB / 3 | 128 KiB / 3, 64 KiB / 3 | |
-| L2 load-to-use latency, cycles | 12 (≤1 MiB), 29–34 (2–8 MiB) | 15–19 | | |
+| L2 load-to-use latency, cycles | 12 (256–512 KiB), 29–34 (2–8 MiB) | 15–20 (128 KiB–4 MiB) | | |
 | First-level data TLB entries | 162 | 133–193 | 160 / 192 | |
-| Second-level TLB entries | 3101 | 2241–2492 | 3072 / 1024 | |
+| Second-level TLB entries | 3101 | 2192–2896 | 3072 / 1024 | |
 
 Things that stood out:
 
 - **The E-core grew more than the P-core.** Against the published M4 figures the P-core window is
   about 6 % deeper (3367 vs ~3184 NOPs), while the E-core is a full instruction wider (6 vs 5) and
-  its window holds twice as many NOPs (1069 vs ~513).
+  its window holds twice as many NOPs (1072 vs ~513).
 - **A load that always returns the same value takes 0.34 cycles on the P-core, not 3.** Its value
   is predicted and the dependency disappears; with three or more alternating values it is 3.00
   again. A pointer chase over one self-pointing cell, the textbook way to measure load latency,
@@ -65,17 +65,19 @@ Things that stood out:
   (`uarch structure -e spec`, `lvp_const_load`)
 - **`csel` whose condition never changes is predicted on the P-core.** A chain running through
   the input that `csel` does *not* select should take 2 cycles per `add`+`csel` step; it takes
-  0.31, so that dependency is gone. After 64 iterations of the opposite outcome the same code
-  takes exactly 2.00. `csinc` takes 2.00 throughout, and so does everything on the E-core. The
-  instruction tables hold the data-flow latency (1): the tool runs every conditional select with
-  inverted flags between measurements to make sure. (`csel_unselected_input` and neighbours)
-- **Pointer-looking data is prefetched.** Two cache misses that should be serialised cost 1.67
-  times one miss when the chased cells hold indices, but only 1.35 times when they hold pointers:
-  a data-memory-dependent prefetcher fetches the second one early. On the E-core both are 1.59.
+  0.33 (0.29 to 0.41 across runs), so that dependency is gone. After 64 iterations of the
+  opposite outcome the same code takes 2.00 in every run. `csinc` takes 2.00 throughout, and so
+  does everything on the E-core. The instruction tables hold the data-flow latency (1): the tool
+  runs every conditional select with inverted flags between measurements to make sure.
+  (`csel_unselected_input` and neighbours)
+- **Pointer-looking data is prefetched.** Two cache misses that should be serialised cost 1.68
+  times one miss when the chased cells hold indices, but only 1.37 times when they hold pointers
+  (median run; 1.09 to 1.39 across runs): a data-memory-dependent prefetcher fetches the second
+  one early. On the E-core the two agree (1.50 and 1.49).
   The window experiment therefore chases indices. (`dmp_pointer_chase`, low confidence: memory
   timing on a shared machine)
 - **Two 32-bit results share one physical register on the P-core**: 812 `add w` results fit in
-  flight against 396 `add x`. On the E-core both are 185.
+  flight against 396 `add x`. On the E-core both are about 185 (184 and 185).
 - **Store-to-load forwarding is almost free on the P-core**: store, load back and add takes 1.66
   cycles per round, so the store→load part costs 0.66 cycles (3.6 on the E-core). Forwarding a
   byte, or loading wider than the store, takes 6.
@@ -87,20 +89,21 @@ Things that stood out:
 - **Compare-and-branch fusion is broader than compare.** `cmp`, `adds`, `subs`, `ands`, `tst`
   followed by `b.cond`, `add`/`and` followed by `cbz`, and `adrp`+`add` all run measurably faster
   adjacent than separated by one instruction, on both core types; two pairs that cannot fuse come
-  out at 1.00 to 1.03 in the same test. `aese`+`aesmc` runs as one 2.2-cycle operation (4.3 when
+  out at 1.00 to 1.03 in the same test. `aese`+`aesmc` runs as one 2.2-cycle operation (4.2 when
   a NOP separates them).
 - **ALU throughput on the P-core depends on what the instructions read.** A stream of
   `add xN, xM, #1` sustains 7.7 per cycle (7.9 when diluted with NOPs: 8 units), two-register
-  adds 6.9, and `add xN, x19, x19`, where every instruction reads the same register twice, only
-  3.2. The E-core runs all of them at exactly 4.
-- **FP add has a fractional latency**: 2.12 cycles on the P-core and 2.50 on the E-core in a
+  adds about 7.0 (6.3 to 7.6 between runs), and `add xN, x19, x19`, where every instruction
+  reads the same register twice, only 3.2. The E-core runs all of them at exactly 4.
+- **FP add has a fractional latency**: 2.11 cycles on the P-core and 2.50 on the E-core in a
   dependency chain (M1: 3). Vector integer adds are exactly 2 on both, FP multiply 3.00 on the
   P-core and 3.50 on the E-core.
 - **Crossing between the integer and FP register files is slow**: `fmov d, x` followed by
   `fmov x, d` takes 10 cycles on the P-core and 8 on the E-core.
-- Integer divide takes 7 cycles whatever the operands; the P-core starts one every two cycles,
-  the E-core one every seven. FP divide (double) takes 9 cycles at one per cycle on the P-core.
-  `pacga` takes 7.
+- Integer divide takes 7 cycles on the P-core whatever the operands and starts one every two
+  cycles. The E-core takes 7 through the dividend, 8 when the quotient is zero and 9 through the
+  divisor, one division at a time. FP divide (double) takes 9 cycles at one per cycle on the
+  P-core (10 on the E-core). `pacga` takes 7 (6 on the E-core).
 
 All of this is in the [results](results/apple-m5/) with run-to-run ranges, and every structure
 number links to the curve it was read from on the results site.
@@ -113,7 +116,7 @@ make measure
 ```
 
 Requirements: an Apple Silicon Mac, the Xcode command line tools (`cc`, `make`) and `python3`.
-No `sudo`. It takes about a minute, needs roughly 300 MB of memory for the cache-miss
+No `sudo`. It takes a minute or two, needs roughly 300 MB of memory for the cache-miss
 experiments, and writes `results/<chip>/<chip>.json` plus two CSV files.
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to send the results.
 
@@ -132,21 +135,23 @@ reach P     yes (confirmed by the per-level counters)
 reach E     yes (confirmed by the per-level counters)
 
 $ build/uarch selftest
-P-core  ok   cmp + csinc round trip = 2.001 cycles (want 2: two one-cycle operations)
+P-core  ok   cmp + csinc round trip = 2.000 cycles (want 2: two one-cycle operations)
 P-core  ok   add_x_reg    latency = 1.000 cycles, 7 clean runs, instructions per iteration as generated (a 64-bit add takes one cycle)
 ...
-E-core  ok   sub_x_reg    latency = 0.999 cycles, 7 clean runs, instructions per iteration as generated (a 64-bit sub takes one cycle)
-784 runs, 0 discarded for migration, 9 discarded for interrupts
+E-core  ok   sub_x_reg    latency = 1.000 cycles, 7 clean runs, instructions per iteration as generated (a 64-bit sub takes one cycle)
+800 runs, 0 discarded for migration, 18 discarded for interrupts
 selftest passed
 
 $ build/uarch insn -l P -f ldr_x_idx
-ldr_x_idx                ldr x0, [x27, x20]                       tp  3.00/c   A0>W0 3.00  R1>W0 4.00
+ldr_x_idx                ldr x0, [x27, x20]                       tp  3.00/c   A0>W0 3.02  R1>W0 4.00
 ldr_x_idx_lsl3           ldr x0, [x27, x20, lsl #3]               tp  3.00/c   A0>W0 3.00  R1>W0 4.00
+ldr_x_idx_sxtw           ldr x0, [x27, w20, sxtw]                 tp  3.00/c   A0>W0 3.03  R1>W0 4.00
+ldr_x_idx_uxtw_lsl3      ldr x0, [x27, w20, uxtw #3]              tp  3.00/c   A0>W0 3.00  R1>W0 4.00
 
 $ build/uarch structure -l P -e spec
   lvp_const_load                    0.34 cycles      (high)  Latency of a load that always returns the same value
-  csel_unselected_input             0.34 cycles     [0.34 .. 0.61]  (high)  add + csel chained through the input csel does not select
-  csel_unselected_after_flip        2.00 cycles     [2.00 .. 2.00]  (high)  The same chain after one opposite outcome
+  csel_unselected_input             0.32 cycles     [0.32 .. 0.60]  (high)  add + csel chained through the input csel does not select
+  csel_unselected_after_flip        2.00 cycles     [2.00 .. 2.00]  (high)  The same chain after 64 iterations of the opposite outcome
   csinc_unselected_input            2.00 cycles     [2.00 .. 2.00]  (high)  The same chain with csinc (control)
   ...
 ```
@@ -181,7 +186,7 @@ and `spec` (`uarch structure -e help`).
 - **Clean runs.** The loop retires a number of instructions the generator knows exactly. Kernel
   work on the thread's behalf (an interrupt, a preemption) can only add instructions, so a run
   whose count exceeds the smallest one seen is discarded. On this shared machine that removed
-  about 3 % of the runs; what remains repeats to three or four digits.
+  about 7 % of the runs; what remains repeats to three or four digits.
 - **Two lengths.** Every quantity is a difference between a loop of n and 2n iterations, and
   between a body of k and 2k (or 3k) copies, which cancels the counter system calls, the loop
   branch and one-per-iteration effects.
@@ -207,14 +212,17 @@ and `spec` (`uarch structure -e help`).
   iteration equal the number of instructions generated.
 - **Controls inside the experiments.** The fusion test includes pairs that cannot fuse (result:
   1.00 to 1.03). The speculation tests pair each effect with a control (`csinc`, a shuffled ring,
-  indices instead of pointers). Cache sizes are compared with what the OS reports (L1D 128 and 64
-  KiB measured and reported; L2 16 MiB measured and reported on the P-cores).
-- **Repeatability.** Five runs, 998 000 timed loops; 3.0 % were discarded for interrupts and 70
-  (0.007 %) for migrating between core types. Across the runs the median spread of a latency is
-  0.05 % on the P-core and 0.12 % on the E-core (99th percentile: 1.1 % and 1.6 %). E-core
-  throughput is as stable (99th percentile 4 %). P-core throughput is not: one figure in ten moves
-  by more than 6 % between runs, because integer throughput there depends on scheduler balancing
-  (see above). Every published number carries its own minimum and maximum.
+  indices instead of pointers). Cache sizes are compared with what the OS reports: L1D 128 and 64
+  KiB, measured and reported. The median L2 knee on the P-cores is at the reported 16 MiB (low
+  confidence: 11.3 to 16 MiB across runs, and the cache is shared with busy cores); on the
+  E-cores it is at 4 MiB of the reported 6 MiB.
+- **Repeatability.** Five runs, 1 043 000 timed loops; 6.6 % were discarded for interrupts and
+  882 (0.08 %) for migrating between core types. Across the runs the median spread (largest minus
+  smallest, over the median) of a latency is 0.05 % on the P-core and 0.2 % on the E-core (99th
+  percentile: 0.6 % and 2.7 %). E-core throughput is as stable (99th percentile 3.5 %). P-core
+  throughput is not: almost one figure in five moves by more than 6 % between runs, because
+  integer throughput there depends on scheduler balancing (see above). Every published number
+  carries its own minimum and maximum.
 - **Against published figures.** Where the M4 or M1 were measured by others with PMU counters, the
   M5 numbers are plausible successors or identical (table above: TLB sizes, L1 size and latency,
   unit counts, 32-bit register sharing). Where they differ sharply (E-core width and window, FP
@@ -240,13 +248,15 @@ and `spec` (`uarch structure -e help`).
   this). `pacga` and `xpac*` are real.
 - Instructions whose timing depends on operand values were measured for the values stated in each
   entry only.
-- The data was collected on a machine shared with other busy jobs (load average about 2). The run
-  filter removes what interrupts touch, not cache or memory contention, which is why the
-  memory-based experiments repeat their searches, report a confidence, and are the least
-  repeatable part: L2 size, memory latency, the E-core TLB sizes and the prefetch test are marked
-  low confidence.
+- The data was collected on a machine shared with other busy jobs (load average 2.5 to 3.4 when
+  the runs started). The run filter removes what interrupts touch, not cache or memory contention,
+  which is why the memory-based experiments repeat their searches, report a confidence, and are
+  the least repeatable part: the P-core L2 size, memory latency, the E-core TLB sizes and the
+  prefetch test are marked low confidence.
 - The P-core `csel` and not-taken-branch figures depend on code placement in ways these tests do
-  not fully explain; they are reported as ranges.
+  not fully explain; they are reported as ranges. One run even timed an `add`+`csel` step at
+  0.85 cycles, faster than the `add` alone (`csel_after_flip` = −0.15), which these tests cannot
+  explain.
 - SME/SME2 and MTE instructions are not covered. They were a stretch goal and were left out
   rather than published without the same scrutiny as the rest.
 

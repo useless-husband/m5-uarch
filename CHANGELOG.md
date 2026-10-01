@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.1 (2026-10-01)
+
+Fixes found in review, and the M5 data measured again with them.
+
+- Experiment results are allocated one by one, so pointers to earlier results stay valid
+  (`ua_exp_tlb` wrote through freed memory when other experiments ran before it).
+- The window experiment's two chases walk separate cycles; on one shared cycle they could lap
+  each other and turn misses into hits.
+- A loop asked for zero iterations no longer wraps its counter and runs 2^64 times. This is
+  handled in C: a branch in the generated code for the same purpose was tried and moved the
+  P-core integer-rename knee by one rename group.
+- The generated-versus-counted instruction check catches one instruction per iteration too many
+  even at the smallest loop count; the branch experiment checks its count too.
+- The reorder-buffer blend leaves out filler kinds whose capacity could not be measured.
+- `uarch_results.py merge` no longer overwrites the first run's clock with the median, and keeps
+  every run's observed clock in the results file.
+- `UARCH_COUNTERS=none` simulates a machine without counters; the smoke test uses it to check
+  that every measuring command skips with status 77 and a reason, as on CI's virtual machines.
+- Clearer titles for the `csel` experiments after 64 opposite outcomes.
+- Results for the Apple M5 re-measured (five runs). Every structure figure's run-to-run range
+  overlaps its 0.1.0 range; P-core `csel` after the opposite outcome is now 2.00 in every run
+  (0.1.0: one run at 0.41).
+
 ## 0.1.0 (2026-10-01)
 
 First version.

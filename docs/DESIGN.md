@@ -58,8 +58,8 @@ and 600 cycles, which is why nothing is ever measured as a single difference.
 The per-level split is what makes core-type verification possible. QoS class "user interactive"
 gets the thread onto a P-core and "background" onto an E-core almost always, but it is a request.
 The tool waits until the counters show the thread on the requested level, and then accepts a run
-only if the other level's counters did not move during it. In the published data 70 of 998 000
-runs were rejected for this.
+only if the other level's counters did not move during it. In the published data 882 of
+1 043 000 runs were rejected for this.
 
 ## Measuring one loop
 
@@ -111,12 +111,12 @@ chases that. 509 is prime, so each of the 31 or 93 load sites in the loop sees a
 turn rather than a short repeating subset. Index-register forms chase a cycle of indices, byte
 loads a cycle of 127 byte values.
 
-**Select prediction.** A chain through `csel` measured between 0.3 and 0.9 cycles on the P-core
-whenever the condition never changed. Conditional selects are therefore measured with `flip`:
-before every counted run the loop executes a few iterations with NZCV inverted, so no select ever
-sees a constant condition; and the flag-to-result chain is built so that the condition alternates
-from step to step, with an odd number of steps so that it also alternates at each code address.
-The helper for flag chains is `csinc`, which shows no such effect.
+**Select prediction.** A chain through `csel` measured between 0.25 and 0.9 cycles on the P-core
+whenever the condition never changed (`csel_const_cond`). Conditional selects are therefore
+measured with `flip`: before every counted run the loop executes a few iterations with NZCV
+inverted, so no select ever sees a constant condition; and the flag-to-result chain is built so
+that the condition alternates from step to step, with an odd number of steps so that it also
+alternates at each code address. The helper for flag chains is `csinc`, which shows no such effect.
 
 The shortcut itself is measured separately (`uarch structure -e spec`), at code addresses nothing
 else has used, because predictor history is per address and the instruction table has just
@@ -127,12 +127,13 @@ deliberately spoiled it.
 A block of independent instances, each writing a different register, repeated to at least 320
 instances per iteration.
 
-**Shared sources.** With every instance reading the same two source registers, integer throughput
-on the P-core came out low and erratic (`add x, x19, x20`: 5.5 per cycle; `add x, x19, x19`:
-3.0), while the E-core was exact. The numbers depend on which registers the instructions read,
-not on the instruction. In the table, read-only integer operands therefore rotate through eight
-registers so that no register is read by every instance. The sensitivity is reported as a finding
-(`units_alu_same_src`), and the unit counts come from a different experiment (below).
+**Shared sources.** With every instance reading the same source registers, integer throughput on
+the P-core came out low and erratic (`add xN, x19, x19`: 3.0 per cycle undiluted, see
+`units_alu_same_src`), while the E-core was exact (4.00). The numbers depend on which registers the
+instructions read, not on the instruction. In the table, read-only integer operands therefore
+rotate through eight registers so that no register is read by every instance. The sensitivity is
+reported as a finding (`units_alu_same_src`), and the unit counts come from a different experiment
+(below).
 
 **Read-write operands.** For instructions such as `fmla` each destination register carries its
 own dependency chain across iterations. With c chains and latency L, throughput cannot exceed c/L
@@ -166,7 +167,8 @@ arrives, so the "blocked" second chase found its data already fetched. The chase
 difference directly.
 
 *Ratios of alternating runs.* A miss lasts a fixed time, not a fixed number of cycles, and the
-E-cluster's clock ramped from 1 to 3 GHz during the experiment. Comparing a loop measured at one
+E-cluster's clock is not fixed: the median E-core clock of the five published runs ranged from
+2.0 to 3.0 GHz (`runs[].ghz_observed` in the results file). Comparing a loop measured at one
 frequency with a baseline measured at another gave knees at random places. Now each point
 alternates single runs of the test loop and of a control loop (the same code with the second
 chase replaced by cache hits), keeps only pairs in which both runs were clean and ran at the same
@@ -178,9 +180,10 @@ the confidence drops.
 
 The "reorder buffer in ordinary instructions" uses a blend of fillers in proportion to the
 capacities just measured for each kind, so that none of the individual structures fills first.
-On the P-core it stops at 1330, well short of the 1731 the individual capacities would allow,
-so something shared ran out. It is not a plain entry count: Apple's reorder buffer holds several
-instructions per entry (NOPs: 3367), so the number depends on the blend and is labelled that way.
+On the P-core it stops at 1330, well short of the roughly 1730 that the individual capacities
+would allow, so something shared ran out. It is not a plain entry count: Apple's reorder buffer
+holds several instructions per entry (NOPs: 3367), so the number depends on the blend and is
+labelled that way.
 
 ### Moves, zero idioms, fusion
 
@@ -229,7 +232,7 @@ readable diff.
   the assembler is already installed.
 - **Pinning threads.** macOS has no affinity API for P/E selection; QoS plus verification is the
   only rootless option.
-- **Reporting rounded latencies.** Rounding 2.12 to 2 would hide that the core alternates; the
+- **Reporting rounded latencies.** Rounding 2.11 to 2 would hide that the core alternates; the
   raw average with its run-to-run range is published instead.
 - **SME and MTE in this version.** Streaming mode changes the register state the harness relies
   on, and MTE needs a tagged mapping; both deserve their own validation.
@@ -241,4 +244,6 @@ entry is executed once and must run or raise SIGILL, and pointer chases must sta
 cycle; statistics have seeded property tests (one of which found a real bug in the step
 detector); the measurement layer is tested against the counters where they exist; the Python
 tools have their own tests, including a check that the committed results are canonical and pass
-the anchors.
+the anchors. The path a virtual machine takes (no counters; simulated with
+`UARCH_COUNTERS=none`) is part of the smoke test: every measuring command must exit with status
+77 and say why.
