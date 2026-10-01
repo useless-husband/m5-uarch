@@ -18,6 +18,22 @@ cat "$TMP/info.txt"
 "$UARCH" nonsense >/dev/null 2>&1 && fail "unknown command accepted"
 "$UARCH" insn -l 9 >/dev/null 2>&1 && fail "bad level accepted"
 
+# The path a virtual machine (GitHub's macOS runners) takes: no counters.
+# Every measuring command must exit 77 and say why, not fail or hang.
+UARCH_COUNTERS=none "$UARCH" info >"$TMP/vm-info.txt"; rc=$?
+[ $rc -eq 77 ] || fail "info without counters exited $rc, want 77"
+grep -q "^counters    none" "$TMP/vm-info.txt" || fail "info without counters: no 'counters none' line"
+grep -q "No cycle counter is available" "$TMP/vm-info.txt" || fail "info without counters: no reason"
+UARCH_COUNTERS=none "$UARCH" selftest >"$TMP/vm-selftest.txt"; rc=$?
+[ $rc -eq 77 ] || fail "selftest without counters exited $rc, want 77"
+grep -q "^SKIP: no unprivileged cycle counter" "$TMP/vm-selftest.txt" || fail "selftest without counters: no reason"
+for args in "insn -f add_x_reg" "structure -e width" "all -q"; do
+    # shellcheck disable=SC2086
+    UARCH_COUNTERS=none "$UARCH" $args >/dev/null 2>"$TMP/vm-err.txt"; rc=$?
+    [ $rc -eq 77 ] || fail "'$args' without counters exited $rc, want 77"
+    grep -q "exposes no cycle counter" "$TMP/vm-err.txt" || fail "'$args' without counters: no reason"
+done
+
 "$UARCH" selftest; rc=$?
 if [ $rc -eq 77 ]; then
     echo "smoke: SKIP measurement: this machine exposes no cycle counters to unprivileged processes"

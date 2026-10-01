@@ -87,6 +87,8 @@ test: all $(TESTS)
 	    if [ $$rc -eq 77 ]; then echo "$$t: skipped"; \
 	    elif [ $$rc -ne 0 ]; then echo "$$t: FAILED ($$rc)"; fail=1; fi; \
 	done; \
+	UARCH_COUNTERS=none $(BUILD)/test_measure >/dev/null; rc=$$?; \
+	if [ $$rc -ne 77 ]; then echo "test_measure without counters: exit $$rc, want 77 (skip)"; fail=1; fi; \
 	$(PYTHON) -W error -m unittest -q tests/test_tools.py || fail=1; \
 	UARCH=$(BUILD)/uarch PYTHON=$(PYTHON) sh tests/smoke.sh; rc=$$?; \
 	if [ $$rc -ne 0 ] && [ $$rc -ne 77 ]; then fail=1; fi; \

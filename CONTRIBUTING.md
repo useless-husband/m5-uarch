@@ -53,3 +53,4 @@ point, and its numbers repeat.
   "inconclusive". A plausible-looking number from a broken experiment is the failure mode this
   project exists to avoid.
 - Tests that need counters exit with status 77 and a reason when there are none.
+  `UARCH_COUNTERS=none make test` runs the suite the way a virtual machine (CI) sees it.

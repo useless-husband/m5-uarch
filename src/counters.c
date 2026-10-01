@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <libproc.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/sysctl.h>
@@ -138,6 +139,9 @@ ua_ctr_backend ua_counters_init(ua_ctr_backend force)
 
     static const ua_ctr_backend order[] = {UA_CTR_SELFCOUNTS, UA_CTR_PIDINFO, UA_CTR_RUSAGE};
     g_backend = UA_CTR_NONE;
+    const char *env = getenv("UARCH_COUNTERS");
+    if (env && strcmp(env, "none") == 0)
+        return g_backend; /* behave like a machine without counters (tests) */
     for (size_t i = 0; i < sizeof order / sizeof order[0]; i++) {
         if (force != UA_CTR_NONE && force != order[i])
             continue;

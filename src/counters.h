@@ -27,7 +27,10 @@ typedef enum {
 } ua_ctr_backend;
 
 /* Probe the backends in order of preference and pick the first that returns
- * non-zero, advancing counters.  `force` may be UA_CTR_NONE for automatic. */
+ * non-zero, advancing counters.  `force` may be UA_CTR_NONE for automatic.
+ * With UARCH_COUNTERS=none in the environment no backend is used, as on a
+ * virtual machine; the test suite uses this to exercise the skip path that
+ * CI runners take. */
 ua_ctr_backend ua_counters_init(ua_ctr_backend force);
 ua_ctr_backend ua_counters_backend(void);
 const char *ua_counters_backend_name(ua_ctr_backend b);
