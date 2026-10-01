@@ -46,4 +46,10 @@ svg.curve circle { fill: var(--accent); }
 svg.curve line { stroke: var(--line); }
 svg.curve text { fill: var(--muted); font: 11px -apple-system, "Segoe UI", sans-serif; }
 footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px; }
-@media (max-width: 760px) { th, td { padding: 4px 6px; } body { padding: 0 10px 32px; } }
+@media (max-width: 760px) {
+  th, td { padding: 4px 6px; }
+  body { padding: 0 10px 32px; }
+  /* Wide tables scroll inside their own box instead of widening the page. */
+  .tablewrap { overflow-x: auto; }
+  thead th { position: static; }
+}
