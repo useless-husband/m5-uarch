@@ -265,7 +265,7 @@ static void conditional_select(int level, ua_exp_list *out)
                       "add x1, x0, #1 ; csel x0, x21, x1, ne with the flags never written, so "
                       "x21 is always chosen.");
     select_unselected(out, level, "csel_unselected_after_flip",
-                      "The same chain after one opposite outcome", 3, 1,
+                      "The same chain after 64 iterations of the opposite outcome", 3, 1,
                       "Identical code at new addresses, with 64 iterations of the opposite condition "
                       "between training and measurement.");
     select_unselected(out, level, "csinc_unselected_input",
@@ -276,7 +276,7 @@ static void conditional_select(int level, ua_exp_list *out)
                  "Latency of csel when its condition has never changed", 0, 0,
                  "Chain of add x1, x0, #1 and csel x0, x1, x21, ne with the flags never written.");
     select_sweep(out, level, "csel_after_flip",
-                 "Latency of the same csel after it has seen the other outcome once", 0, 1,
+                 "Latency of the same csel after 64 iterations of the other outcome", 0, 1,
                  "Identical code at new addresses; after the same training it runs 64 iterations "
                  "with the opposite condition, then is measured with the usual one.");
     select_sweep(out, level, "csinc_const_cond",
