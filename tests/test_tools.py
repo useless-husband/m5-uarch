@@ -241,7 +241,20 @@ class ResultsTests(unittest.TestCase):
         self.assertEqual((rob["value"], rob["min"], rob["max"]), (603, 600, 610))
         self.assertEqual(rob["curve"], [[1, 1.0], [2, 1.0], [3, 2.0]])   # sorted by x
         self.assertEqual(len(m["runs"]), 3)
+        self.assertEqual(m["runs"][0]["ghz_observed"], {"P": 3.2})  # per run, not only median
         self.assertEqual(m["cores"], ["P"])
+
+    def test_merge_keeps_each_runs_clock_and_leaves_inputs_alone(self):
+        # Regression: merge() used to overwrite the first run's level record
+        # with the median clock, so that run's own clock was lost.
+        runs = [raw_run(), raw_run(), raw_run()]
+        for r, ghz in zip(runs, (3.0, 2.0, 2.5)):
+            r["machine"]["levels"][0]["ghz_observed"] = ghz
+        before = json.dumps(runs, sort_keys=True)
+        m = u.merge(runs)
+        self.assertEqual([r["ghz_observed"] for r in m["runs"]], [{"P": 3.0}, {"P": 2.0}, {"P": 2.5}])
+        self.assertEqual(m["machine"]["levels"][0]["ghz_observed"], 2.5)
+        self.assertEqual(json.dumps(runs, sort_keys=True), before)
 
     def test_merge_property_median_within_range(self):
         rng = random.Random(SEED)

@@ -67,7 +67,10 @@ def merge(runs: list[dict]) -> dict:
     if len(brands) != 1:
         raise ResultError(f"runs come from different chips: {sorted(brands)}")
     first = runs[0]
+    # Copy the level records too: they are rewritten below (median clock),
+    # and the per-run values of the first run must survive for "runs".
     machine = dict(first["machine"])
+    machine["levels"] = [dict(lv) for lv in machine["levels"]]
     cores = [lv["label"] for lv in machine["levels"]
              if any(_level(r, lv["label"]).get("measured") for r in runs)]
     for lv in machine["levels"]:
@@ -92,6 +95,10 @@ def merge(runs: list[dict]) -> dict:
             "discarded_migrated": r["run"]["discarded_migrated"],
             "discarded_disturbed": r["run"]["discarded_disturbed"],
             "load_average": r["run"]["load_average"],
+            # The clock each core type ran at in this run (median over its
+            # measurements): memory timing depends on it, and it varies.
+            "ghz_observed": {lv["label"]: lv["ghz_observed"] for lv in r["machine"]["levels"]
+                             if lv.get("ghz_observed")},
         } for r in runs],
         "helpers": {},
         "instructions": [],
