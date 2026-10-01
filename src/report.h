@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 
-#define UA_TOOL_VERSION "0.1.0"
+#define UA_TOOL_VERSION "0.1.1"
 #define UA_SCHEMA "m5-uarch/1"
 
 typedef struct {
