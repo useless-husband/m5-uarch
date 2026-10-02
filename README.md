@@ -5,11 +5,13 @@
 Instruction latency and throughput tables for about 940 instruction forms, and the sizes of the
 core's internal structures, for both the performance ("Super") and the efficiency cores of the M5.
 Everything is measured on real hardware from an ordinary unprivileged process: no root, no kernel
-extension, no entitlements. The same tool runs on any Apple Silicon Mac with one command.
+extension, no entitlements. The same tool runs on any Apple Silicon Mac with one command, and
+anyone can add their chip: `make submit` measures and packs the result, you paste it into a
+GitHub issue, a bot checks it, and the site compares chips side by side.
 
 [繁體中文說明](README.zh-TW.md) · [Design notes](docs/DESIGN.md) ·
-[Browse the results](https://useless-husband.github.io/m5-uarch/) ·
-[JSON](results/apple-m5/apple-m5.json) · [CSV](results/apple-m5/)
+[Browse and compare the results](https://useless-husband.github.io/m5-uarch/) ·
+[Add your Mac](CONTRIBUTING.md) · [JSON](results/apple-m5/apple-m5.json) · [CSV](results/apple-m5/)
 
 ## Why this exists
 
@@ -108,17 +110,38 @@ Things that stood out:
 All of this is in the [results](results/apple-m5/) with run-to-run ranges, and every structure
 number links to the curve it was read from on the results site.
 
-## Measure your own Mac
+## Add your Mac
 
 ```sh
 git clone https://github.com/useless-husband/m5-uarch && cd m5-uarch
-make measure
+make submit
 ```
 
-Requirements: an Apple Silicon Mac, the Xcode command line tools (`cc`, `make`) and `python3`.
-No `sudo`. It takes a minute or two, needs roughly 300 MB of memory for the cache-miss
-experiments, and writes `results/<chip>/<chip>.json` plus two CSV files.
-[CONTRIBUTING.md](CONTRIBUTING.md) explains how to send the results.
+Requirements: an Apple Silicon Mac, the Xcode command line tools (`cc`, `make`, `python3`) and a
+GitHub account. No `sudo`, no git knowledge beyond the clone (or download the ZIP). `make submit`
+measures three times (a minute or two, roughly 300 MB of memory for the cache-miss experiments),
+packs the result into a block of text, copies it and opens a new issue on this repository:
+
+```console
+$ make submit
+chip        Apple M5 (Mac17,2), 4 P + 6 E cores
+macOS       27.0 (26A428)
+tool        0.1.1, 3 runs
+values      4638 instruction figures per run, 132 structure experiments
+size        42232 characters (an issue holds 65536)
+not sent    host name, user name, serial number, UUIDs, file paths, memory size, start times
+...
+To submit with a GitHub account:
+  1. Open https://github.com/useless-husband/m5-uarch/issues/new?template=submission.yml&title=...
+  2. Click into the Submission box and paste (Cmd-V); the text is on the clipboard.
+  3. Tick the licence box and click Create.
+```
+
+Paste, tick, create. A bot answers within minutes with **accepted**, **flagged** or **rejected**
+and the reason for each check, and for accepted data opens a pull request that the maintainer
+merges. `make submit-pr` does the same as files for a pull request. `make measure` alone writes
+`results/local/<chip>/` (JSON and CSV, untracked), and `make site` shows it next to the published
+chips. [CONTRIBUTING.md](CONTRIBUTING.md) lists exactly what is sent.
 
 What a run looks like:
 
@@ -203,6 +226,27 @@ and `spec` (`uarch structure -e help`).
   [docs/DESIGN.md](docs/DESIGN.md) for each experiment and for what had to be changed to make
   them work on this core.
 
+Submissions, without a server:
+
+```
+ make submit ──► per-run values only, allowlisted fields ──► gzip+base64 block (~42 000 chars)
+                                                                  │ paste into an issue
+                                                                  ▼
+ Actions, job 1 (read-only token): parse the issue body as data, regenerate the instruction
+   table from insns/*.def, recompute every statistic, run the checks ──► verdict + comment
+                                                                  │
+ Actions, job 2: comment, label, push submission/issue-N, open a pull request
+                                                                  │ maintainer merges
+                                                                  ▼
+ Pages: combine all datasets per chip (median, spread, outliers marked) ──► comparison site
+```
+
+The submission is not the 370 KB results file but the per-run values that the merge consumes
+(three runs fit in about 42 000 characters, five in 54 496; an issue holds 65 536). The instruction
+text is regenerated on the other side from the same tool version, and a digest proves it
+matches. [docs/DESIGN.md](docs/DESIGN.md#open-submissions) explains the format, every check, the
+outlier rule and its calibration, and the threat model of the workflows.
+
 ## Validation
 
 - **Anchors.** `uarch selftest` and `tools/uarch_results.py check` require what must be true on any
@@ -223,6 +267,13 @@ and `spec` (`uarch structure -e help`).
   throughput is not: almost one figure in five moves by more than 6 % between runs, because
   integer throughput there depends on scheduler balancing (see above). Every published number
   carries its own minimum and maximum.
+- **Automatic checks on every submission** (issue or pull request): format and privacy, tool
+  version and instruction-table digest, statistics recomputed from the per-run values, the
+  anchors above, internal consistency (unit counts within the width, P-core against E-core,
+  measured against reported cache size), run quality, duplicates, and a per-value outlier test
+  against the chip's earlier datasets. On the M5's own runs split into two groups, 0.06 % or
+  fewer of the values fall outside the outlier rule; a submission is flagged above 0.5 %.
+  `make validate` re-checks every committed dataset, as CI does.
 - **Against published figures.** Where the M4 or M1 were measured by others with PMU counters, the
   M5 numbers are plausible successors or identical (table above: TLB sizes, L1 size and latency,
   unit counts, 32-bit register sharing). Where they differ sharply (E-core width and window, FP
@@ -257,6 +308,10 @@ and `spec` (`uarch structure -e help`).
   not fully explain; they are reported as ranges. One run even timed an `add`+`csel` step at
   0.85 cycles, faster than the `add` alone (`csel_after_flip` = −0.15), which these tests cannot
   explain.
+- The automatic checks catch mistakes and naive forgery, not a determined forger: invented runs
+  that respect every anchor would pass. Independent submissions of the same chip are the real
+  defence; the site shows how many each chip has and where each came from, and calls a chip
+  verified only when two independent datasets agree. Today the M5 has one.
 - SME/SME2 and MTE instructions are not covered. They were a stretch goal and were left out
   rather than published without the same scrutiny as the rest.
 
@@ -281,22 +336,27 @@ and `spec` (`uarch structure -e help`).
 - **LLVM** defines `apple-m5` with `CycloneModel`
   ([commit f85494f](https://github.com/llvm/llvm-project/commit/f85494f6afeb)).
 
-What is different here: it covers the M5, both core types; it needs no privileges; and it
-publishes the run-to-run spread of every number.
+What is different here: it covers the M5, both core types; it needs no privileges; it
+publishes the run-to-run spread of every number; and anyone can add a chip, with every
+submission checked automatically and recomputed from its raw per-run values.
 
 ## Build and test
 
 ```sh
 make            # build/uarch
-make test       # unit, property, encoder cross-check, functional and smoke tests
+make test       # unit, property, encoder cross-check, functional, smoke and submission end-to-end tests
 make lint       # warnings as errors, clang static analyser, Python byte-compile
 make bench      # selftest plus every structure experiment (about ten seconds)
-make measure    # three full runs, merged into results/<chip>/
-make site       # regenerate site/data.js from results/
+make measure    # three full runs, merged into results/local/<chip>/ (untracked)
+make submit     # measure (or reuse) and pack for a GitHub issue; submit-pr: files for a pull request
+make validate   # re-check every committed dataset the way the bots do
+make site       # build site/data.js and site/data/ from results/
 ```
 
 Tests that need the counters print why and skip on machines without them (virtual machines,
-including GitHub's macOS runners); the rest of the suite runs there.
+including GitHub's macOS runners); the rest of the suite runs there. The submission tools are
+also tested on `ubuntu-latest`, where the bots run, including `tests/e2e_submission.sh`, which
+runs the workflows' commands on a sample issue without GitHub.
 
 ## Licence
 

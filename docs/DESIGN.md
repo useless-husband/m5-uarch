@@ -29,8 +29,12 @@ src/counters.c     thread_selfcounts / proc_pidinfo / proc_pid_rusage
 src/measure.c      two-point measurement, clean-run filter, fault guard
 src/exp_*.c        structure experiments
 src/report.c       JSON
-tools/uarch_results.py   merge runs, check anchors, CSV, site data
-site/              static viewer
+tools/uarch_results.py   merge runs, check anchors, CSV
+tools/uarch_submit.py    pack runs into a submission (privacy filter, text armour), read it back
+tools/uarch_validate.py  the automatic checks; issue, pull-request and tree modes; bot comment
+tools/uarch_site.py      combine all datasets per chip into the site's data files
+site/              static viewer (several chips side by side)
+.github/workflows/ submission.yml (issues), results-pr.yml (pull requests), ci.yml, pages.yml
 ```
 
 The C code never encodes a table instruction. A template such as
@@ -219,6 +223,139 @@ inconclusive if fewer than half the runs produced a value. `check` re-validates 
 merged file. The file is written one instruction per line so that a re-measurement gives a
 readable diff.
 
+A published dataset is two files in `results/<chip>/`: the samples file (the submission, below)
+and the results file rebuilt from it, with a `source` (issue, pull request or commit). The
+committed M5 dataset rebuilds from its samples file byte for byte; a test checks it.
+
+## Open submissions
+
+The goal: anyone with an Apple Silicon Mac and a GitHub account measures their chip, submits it
+with one command and a paste, has it checked automatically, and finds it on the site next to the
+other chips. Free to run: GitHub Issues, pull requests, Actions and Pages, no server.
+
+### What is sent, and why it fits in an issue
+
+The constraints: the results file is 370 KB (52 KB gzipped); an issue body holds 65 536
+characters; a prefilled new-issue URL holds a few KB. So the submission is not the results file.
+It is what `merge` consumes, and nothing else:
+
+- every run's value of every number, as integer thousandths (the tool prints three decimals, so
+  this is lossless), with the runs of one number side by side in one string,
+  `"3584,3601,3550|1013,1013,1012"` (throughput, then each latency path; `:c` and `:r` carry the
+  own-chain and round-trip flags, a word such as `noisy` a failed measurement), so that gzip sees
+  the repeats;
+- per structure experiment, each run's status, value and confidence, plus the note and curve of
+  the run that `merge` publishes (the one closest to the median);
+- the chip description and each run's conditions (the allowlist in CONTRIBUTING.md);
+- two digests: `spec_sha256` of the instruction table and `stats_sha256` of the results text that
+  the packer computed.
+
+The instruction text (assembly, chains, groups: 17 KB compressed) is not sent. It follows from
+`insns/*.def` at the same tool version, so the receiving side regenerates it with
+`gen_insns.py`; the packer refuses runs whose metadata differs from the local definitions (a
+stale build), and the validator refuses a `spec_sha256` other than its own. A test checks that
+the Python regeneration equals what the C tool wrote into the committed results.
+
+The armoured text is gzip + base64 between `-----BEGIN M5-UARCH SUBMISSION-----` and `-----END`
+lines, with a header (format, chip, SHA-256 of the JSON). The M5's five runs come to 54 496
+characters, three runs (the default) to about 42 000; the packer refuses more than 60 000, which
+leaves room for the rest of the form. The reader finds the block anywhere in the issue body, so
+the form's code fence, Windows line ends or indentation do not matter, and it caps decompression
+at 4 MB.
+
+Mechanisms considered and rejected:
+
+- **A prefilled issue URL.** Even the compressed data is several times the limit.
+- **An attached file.** GitHub stores issue attachments under `user-attachments` URLs. Whether a
+  workflow can download them anonymously and reliably is not documented and has changed before,
+  the workflow would fetch a URL chosen by the submitter, and none of it can be tested offline.
+- **A gist or any other link.** One more account step for the submitter, and the bot would fetch
+  third-party content.
+- **A web form with a server.** Not free, and a service to keep running.
+
+Pasting needs one text box, the data stays in the issue (public, archived, auditable), and the bot
+reads it from the event payload without any network request.
+
+### The checks
+
+`tools/uarch_validate.py` runs the same rules on an issue, on the files of a pull request, and on
+every committed dataset (`make validate`, CI). A rule either rejects (the data cannot be right or
+cannot be read) or flags (surprising; a person decides). Rejected if anything rejects, flagged if
+anything flags, accepted otherwise.
+
+| Rule | Rejects | Flags |
+|---|---|---|
+| Licence | box not ticked | |
+| Format and privacy | unknown fields anywhere, wrong types, strings that are not chip/model/OS patterns, anything that looks like a path, e-mail address, UUID, serial number or `.local` host name | |
+| Tool version | version not in the accepted list; instruction-table digest differs | |
+| Statistics | statistics rebuilt from the per-run values differ from `stats_sha256` (issue) or from the results file (pull request; the first differing values are named) | |
+| Anchors | add, sub, eor not 1 cycle; cmp + csinc not 2; implausible values; a single instruction faster than the width | |
+| Consistency | width outside 2–16; a unit count above the width; L1 latency outside 2–8; reorder buffer outside 64–16 384 | misprediction penalty outside 4–40; NOP throughput and the width experiment more than 10 % apart; adds faster than the ALU count; L1D more than ×2 from what macOS reports; P-core smaller than E-core (width, window, ALUs, loads, FP adds, integer renames, by more than 5 %); P-cores clocked below the E-cores |
+| Run quality | | more than 25 % of loops disturbed, 5 % migrated, or 20 % of experiments inconclusive |
+| Duplicate | same content id or same statistics as a published dataset | |
+| Outliers | | more than 0.5 % of the values outside the outlier rule (below) |
+
+**The outlier rule.** For each value (every throughput, latency path, helper round trip and
+conclusive structure figure; low-confidence ones are skipped), let c be the median over the
+chip's earlier datasets. The value is an outlier if it is further from c than
+
+    max(5 × 1.4826 × MAD, r × |c|, a) + half its own run range + the median half run range of the others
+
+where MAD (the median absolute deviation) needs three earlier datasets, and r, a are 5 % and
+0.05 cycles for latencies, 15 % and 0.10 per cycle for throughputs (P-core throughput moves by
+more than 6 % between runs for one figure in five), 15 % for structure figures. The run ranges
+count as slack because a value whose own runs disagreed is weak evidence either way.
+
+Calibration on real data: the M5's five runs split into a 2-run and a 3-run group, all ten
+splits, each side checked against the other: 24 of 95 076 comparisons fell outside the rule, at
+most 3 of about 4 750 values in one comparison (0.06 %). So honest repeat measurements do leave a
+few values outside. A submission is therefore flagged as a whole only when more than 0.5 % of its
+values are outliers; below that the values are listed in the comment as a note and marked on the
+site, and the verdict is unchanged. A test perturbs every M5 throughput by up to 0.3 %, makes one
+latency wrong, and expects "accepted" with exactly that kind of note.
+
+**What this cannot do.** These checks catch mistakes, broken runs and naive forgery (edited
+numbers, statistics that do not follow from the samples, physically impossible values). Someone
+determined can still fabricate a consistent dataset: run the packer on invented runs that respect
+every anchor. No automatic check can tell that apart from a real measurement. Independent
+submissions of the same chip are the real defence: the site shows, for every chip, how many
+datasets it has and where each came from, and calls a chip verified only when two independent
+ones agree.
+
+### Combining datasets on the site
+
+`tools/uarch_site.py` builds the site's data from every dataset. For each value: the median of
+the datasets that agree on it, with the range of their medians as the spread and their number;
+with a single dataset, the run-to-run range. Which datasets "agree" uses the same outlier rule:
+with three or more, each dataset is compared with the median of all of them (one outlier cannot
+drag that reference); with two, each with the other, so both are marked when they disagree,
+because nothing can tell which is right. A dataset is flagged when more than 0.5 % of its values
+are marked; a chip is verified with two accepted datasets, a single submission with one.
+
+The site data is generated when Pages deploys, not committed: a merged submission adds two files
+under `results/` and nothing else, so two submissions never conflict. `data.js` holds the chip
+list, the datasets and the structure figures (74 KB for the M5); each chip's instruction table is
+`data/<chip>.js` (311 KB), loaded by a script tag when the chip is shown, which also works when
+the page is opened from disk.
+
+## Threat model
+
+Who can attack: anyone who can open an issue or a pull request. What is at stake: the contents of
+`main` and of the site, the repository's workflow token, and the submitters' privacy.
+
+| Threat | Mitigation |
+|---|---|
+| Script injection through the issue body or title | No `${{ }}` expression appears inside a `run:` script (a test checks every workflow). The validator reads the issue from `$GITHUB_EVENT_PATH`; other values reach scripts through `env:`. |
+| Executing submitted content | Submissions are parsed as JSON with the standard library, never evaluated; base64 is strict, decompression and file sizes are capped. |
+| "Pwn request": `pull_request_target` running a pull request's code with a write token | `results-pr.yml` checks out `main` only, fetches the pull request's commit as objects, and reads the changed dataset files with `git show`, as data, after their names matched `results/<chip>/<id>[.samples].json`. Nothing from the pull request is built or run there. The pull request's own code runs in `ci.yml` under `pull_request`, with a read-only token. |
+| A token that can do too much | Every workflow starts from `permissions: {}` or read-only. The job that parses untrusted input has `contents: read` and no stored credentials. The job that writes only handles files the validator from `main` produced, re-checks their names (`install`), refuses to overwrite, and pushes only `submission/issue-<n>`; it never pushes to `main`, and a person merges. |
+| A misleading bot comment (Markdown or HTML from the submission) | The comment is built from fixed text and numbers. Chip and model names appear only after matching strict patterns; any other submitted string is replaced by "(not shown)". A test submits `<img>` markup. |
+| Compromised third-party actions | Pinned to full commit SHAs (a test checks); the bots' own code is standard-library Python. |
+| Path tricks in pull-request file names | Strict name patterns before any read; files elsewhere under `results/` are flagged for a person. |
+| Floods and resource use | Ten-minute timeouts; one run per issue or pull request at a time (`concurrency`, cancel in progress); a rejected submission costs one short run and a comment and creates no branch. A flood of valid-looking submissions would create branches; the maintainer can disable the workflow or lock issues. |
+| Forged data | Not preventable by checks (above); independent submissions, sources and counts on the site. |
+| Leaking the submitter's identity | Allowlisted fields only, a scan for identifying strings in the packer and the validator, tests that inject host name, user name, serial number, UUID, path and e-mail address. The GitHub account that opens the issue is public, as with any issue. |
+
 ## Rejected alternatives
 
 - **Timing with the wall clock.** Frequency scaling makes nanoseconds meaningless for anything
@@ -234,6 +371,11 @@ readable diff.
   only rootless option.
 - **Reporting rounded latencies.** Rounding 2.11 to 2 would hide that the core alternates; the
   raw average with its run-to-run range is published instead.
+- **Sending the results file** with a submission. It does not fit in an issue, and the
+  statistics in it are only worth something if they can be recomputed, which needs the per-run
+  values anyway.
+- **Committing the site data.** Every submission would change the same file and conflict with
+  the next one; the data is now built when the site is deployed.
 - **SME and MTE in this version.** Streaming mode changes the register state the harness relies
   on, and MTE needs a tagged mapping; both deserve their own validation.
 
@@ -244,6 +386,13 @@ entry is executed once and must run or raise SIGILL, and pointer chases must sta
 cycle; statistics have seeded property tests (one of which found a real bug in the step
 detector); the measurement layer is tested against the counters where they exist; the Python
 tools have their own tests, including a check that the committed results are canonical and pass
-the anchors. The path a virtual machine takes (no counters; simulated with
+the anchors. The submission tools are tested rule by rule (`tests/test_submission.py`,
+`tests/test_validate.py`, `tests/test_site.py`): the packer round trip, the privacy filter with
+injected identifying fields, damaged and oversized pastes, every check with good, tampered,
+broken and inconsistent data, outliers among several fake submissions of one chip, the issue and
+pull-request flows and the bot comment. `tests/test_workflows.py` checks the workflow security
+rules, and `tests/e2e_submission.sh` runs the workflows' commands on a sample issue without
+GitHub: check, publish to a local bare repository with a stand-in `gh`, rebuild the site, reject a
+damaged paste, and check a pull request's files through `git show`. The path a virtual machine takes (no counters; simulated with
 `UARCH_COUNTERS=none`) is part of the smoke test: every measuring command must exit with status
 77 and say why.

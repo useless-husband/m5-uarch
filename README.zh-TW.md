@@ -4,11 +4,13 @@
 
 內容包含約 940 種指令形式的延遲（latency）與吞吐量（throughput）表，以及核心內部各種結構的大小，
 M5 的效能核心（系統稱為 "Super"）與節能核心都有。所有數字都是在真實硬體上、用一般權限的行程量出來的：
-不用 root、不用核心擴充、不用特殊授權。同一套工具在任何 Apple Silicon Mac 上一行指令就能跑。
+不用 root、不用核心擴充、不用特殊授權。同一套工具在任何 Apple Silicon Mac 上一行指令就能跑，而且任何人都能
+把自己的晶片加進來：`make submit` 量測並打包結果，你把它貼進一個 GitHub issue，機器人自動檢查，網站上就能
+把不同晶片並排比較。
 
 [English](README.md) · [設計文件](docs/DESIGN.md) · [給初學者的導讀](docs/導讀.zh-TW.md) ·
-[線上瀏覽結果](https://useless-husband.github.io/m5-uarch/) ·
-[JSON](results/apple-m5/apple-m5.json) · [CSV](results/apple-m5/)
+[線上瀏覽與比較結果](https://useless-husband.github.io/m5-uarch/) ·
+[加入你的 Mac](CONTRIBUTING.zh-TW.md) · [JSON](results/apple-m5/apple-m5.json) · [CSV](results/apple-m5/)
 
 ## 為什麼要做這個
 
@@ -88,16 +90,33 @@ x86 有 uops.info，Apple M1 有 Dougall Johnson 的 Firestorm 表。之後的 A
 以上都在[結果檔](results/apple-m5/)裡，附每次執行之間的範圍；結果網站上每個結構數字都可以點開看它是從
 哪條曲線讀出來的。
 
-## 量你自己的 Mac
+## 加入你的 Mac
 
 ```sh
 git clone https://github.com/useless-husband/m5-uarch && cd m5-uarch
-make measure
+make submit
 ```
 
-需要：Apple Silicon Mac、Xcode 命令列工具（`cc`、`make`）、`python3`。不需要 `sudo`。大約一到兩分鐘，
-快取未命中實驗會用到約 300 MB 記憶體，結果寫在 `results/<晶片>/<晶片>.json` 和兩個 CSV 檔。
-怎麼把結果送回來，請看 [CONTRIBUTING.md](CONTRIBUTING.md)。
+需要：Apple Silicon Mac、Xcode 命令列工具（`cc`、`make`、`python3`）和一個 GitHub 帳號。不需要 `sudo`，
+除了 clone（或直接下載 ZIP）之外也不需要會用 git。`make submit` 會量三次（一兩分鐘，快取未命中實驗會用到約
+300 MB 記憶體），把結果打包成一段文字、複製到剪貼簿，並打開這個專案的新增 issue 頁面：
+
+```console
+$ make submit
+chip        Apple M5 (Mac17,2), 4 P + 6 E cores
+macOS       27.0 (26A428)
+tool        0.1.1, 3 runs
+values      4638 instruction figures per run, 132 structure experiments
+size        42232 characters (an issue holds 65536)
+not sent    host name, user name, serial number, UUIDs, file paths, memory size, start times
+...
+```
+
+貼上、打勾、按 Create。幾分鐘內機器人會回覆 **accepted（接受）**、**flagged（標記待審）** 或
+**rejected（退回）**，附上每一項檢查的理由；接受的資料會被開成 pull request，由維護者合併。`make submit-pr`
+做一樣的事，但產生的是給 pull request 用的檔案。只跑 `make measure` 的話，結果寫在 `results/local/<晶片>/`
+（JSON 和 CSV，git 不追蹤），`make site` 會把它和已發布的晶片放在一起顯示。到底送出哪些資料，
+[CONTRIBUTING.zh-TW.md](CONTRIBUTING.zh-TW.md) 有完整清單。
 
 實際執行的樣子：
 
@@ -173,6 +192,26 @@ $ build/uarch structure -l P -e spec
   塞滿之前兩個未命中會重疊。每個實驗的細節，以及為了在這顆核心上行得通而做的修改，見
   [docs/DESIGN.md](docs/DESIGN.md)。
 
+不用伺服器的提交流程：
+
+```
+ make submit ──► 只有每一輪的數值、只有允許的欄位 ──► gzip+base64 文字（約 42 000 字元）
+                                                          │ 貼進 issue
+                                                          ▼
+ Actions 第一段（唯讀權限）：把 issue 內容當資料解析，從 insns/*.def 重建指令表，
+   重算每一個統計值，跑所有檢查 ──► 結論 + 留言
+                                                          │
+ Actions 第二段：留言、貼標籤、推送 submission/issue-N 分支、開 pull request
+                                                          │ 維護者合併
+                                                          ▼
+ Pages：把每顆晶片的所有資料集合併（中位數、分布範圍、標出離群值）──► 比較網站
+```
+
+送出的不是 370 KB 的結果檔，而是合併程式需要的「每一輪的原始數值」（三輪約 42 000 字元、五輪 54 496 字元；
+一個 issue 最多 65 536 字元）。指令的文字說明在接收端用同一版工具重新產生，並用摘要值證明兩邊一致。
+格式、每一項檢查、離群值規則和它的校準、以及 workflow 的威脅模型，見
+[docs/DESIGN.md](docs/DESIGN.md#open-submissions)。
+
 ## 驗證
 
 - **基準點。** `uarch selftest` 與 `tools/uarch_results.py check` 要求任何 AArch64 核心都必須成立的事實：
@@ -188,6 +227,10 @@ $ build/uarch structure -l P -e spec
   （第 99 百分位：0.6% 與 2.7%）。E 核心的吞吐量一樣穩（第 99 百分位 3.5%）。P 核心的吞吐量不是：將近五個
   數字裡就有一個在不同次執行之間差超過 6%，因為那裡的整數吞吐量取決於排程器的分配（見上）。每個公布的
   數字都附自己的最小值與最大值。
+- **每一份提交都自動檢查**（issue 或 pull request）：格式與隱私、工具版本與指令表摘要、用每一輪的數值重算
+  統計值、上面的錨點、內部一致性（單元數不超過寬度、P 核對 E 核、量到的快取大小對系統回報）、量測品質、
+  重複提交，以及和這顆晶片既有資料逐值比對的離群值檢查。把 M5 自己的五輪拆成兩組互相比對，落在規則之外的
+  數值最多 0.06%；超過 0.5% 才會把整份提交標記待審。`make validate` 會像 CI 一樣重新檢查所有已收錄的資料集。
 - **與已發表數字比較。** M4 或 M1 有人用 PMU 計數器量過的項目，M5 的數字要嘛合理地往上長、要嘛完全相同
   （上表：TLB 大小、L1 大小與延遲、單元數、32 位元共用暫存器）。差很多的地方（E 核心的寬度與視窗、
   浮點加法延遲）每次執行都重現。
@@ -212,6 +255,9 @@ $ build/uarch structure -l P -e spec
 - P 核心的 `csel` 與不跳躍分支的數字會隨程式碼位置改變，這些測試無法完全解釋，所以以範圍呈現。甚至有
   一次執行量到 `add`+`csel` 一步只要 0.85 個週期，比單獨的 `add` 還快（`csel_after_flip` = −0.15），這些
   測試無法解釋。
+- 自動檢查擋得住失誤和粗糙的造假，擋不住有心人：照著每個錨點捏造出來的數據也會通過。真正的防線是同一顆
+  晶片有多份獨立的提交；網站會顯示每顆晶片有幾份資料、各自從哪裡來，只有兩份獨立資料一致時才標成
+  verified。目前 M5 只有一份。
 - 沒有涵蓋 SME/SME2 與 MTE 指令。它們是延伸目標，與其不經同樣的檢驗就發表，不如先不放。
 
 ## 相關作品
@@ -231,20 +277,25 @@ $ build/uarch structure -l P -e spec
 - **LLVM** 用 `CycloneModel` 定義 `apple-m5`
   （[commit f85494f](https://github.com/llvm/llvm-project/commit/f85494f6afeb)）。
 
-本專案的不同之處：涵蓋 M5 的兩種核心；不需要任何權限；每個數字都公布各次執行之間的差異。
+本專案的不同之處：涵蓋 M5 的兩種核心；不需要任何權限；每個數字都公布各次執行之間的差異；而且任何人都能
+加入晶片，每份提交都會自動檢查，並從原始的每輪數值重新計算。
 
 ## 建置與測試
 
 ```sh
 make            # 產生 build/uarch
-make test       # 單元、性質、編碼器對照、功能與冒煙測試
+make test       # 單元、性質、編碼器對照、功能、冒煙測試，以及提交流程的端到端測試
 make lint       # 警告視為錯誤、clang 靜態分析、Python 編譯檢查
 make bench      # selftest 加上所有結構實驗（約十秒）
-make measure    # 完整跑三次並合併到 results/<晶片>/
-make site       # 由 results/ 重新產生 site/data.js
+make measure    # 完整跑三次並合併到 results/local/<晶片>/（git 不追蹤）
+make submit     # 量測（或沿用上次的）並打包成 GitHub issue 用的文字；submit-pr：pull request 用的檔案
+make validate   # 用機器人的方式重新檢查所有已收錄的資料集
+make site       # 由 results/ 產生 site/data.js 和 site/data/
 ```
 
 需要計數器的測試在沒有計數器的機器上（虛擬機，包括 GitHub 的 macOS 執行器）會印出原因並略過，其餘照常執行。
+提交工具也會在機器人實際執行的 `ubuntu-latest` 上測試，包括 `tests/e2e_submission.sh`：不經過 GitHub，
+直接對一份範例 issue 跑 workflow 裡的指令。
 
 ## 授權
 
