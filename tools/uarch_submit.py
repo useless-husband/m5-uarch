@@ -46,7 +46,7 @@ REPO = "useless-husband/m5-uarch"
 SCHEMA = "m5-uarch-submission/1"
 # Tool versions whose instruction table and measurement code produce
 # comparable data.  The instruction table itself is checked by digest.
-SUPPORTED_TOOL_VERSIONS = ("0.1.1", "0.2.0")
+SUPPORTED_TOOL_VERSIONS = ("0.3.0",)
 MIN_RUNS, MAX_RUNS = 3, 9
 # An issue body holds 65 536 characters; the form's headings, the licence
 # line and a few notes need the rest.

@@ -114,7 +114,7 @@ def make_run(sp: us.Spec, i: int = 0, brand: str = "Apple M5", noise: float = 0.
             exps.append(e)
         structure[c] = exps
     return {
-        "schema": ur.RAW_SCHEMA, "tool_version": "0.2.0", "started": f"2026-10-02T00:0{i}:00Z",
+        "schema": ur.RAW_SCHEMA, "tool_version": "0.3.0", "started": f"2026-10-02T00:0{i}:00Z",
         "seconds": 10.0 + i,
         "machine": {"brand": brand, "model": "Mac17,2", "os_version": "27.0",
                     "os_build": "26A428", "page_size": 16384, "memory_bytes": 17179869184,

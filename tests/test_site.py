@@ -65,7 +65,7 @@ class SiteTests(unittest.TestCase):
         self.assertEqual((chip["slug"], chip["status"], chip["published"]), ("apple-m5", "single", 1))
         ds = chip["datasets"][0]
         self.assertEqual((ds["id"], ds["status"], ds["compared"], ds["source"]),
-                         ("apple-m5", "accepted", 0, {"kind": "commit", "commit": "c8751e3"}))
+                         ("apple-m5", "accepted", 0, {"kind": "commit", "commit": "85f5644"}))
         self.assertEqual(ds["file"], "results/apple-m5/apple-m5.json")
         res = ur.load_results(F.ROOT / "results/apple-m5/apple-m5.json")
         width = next(r for r in chip["structure"]["P"] if r["id"] == "width")
