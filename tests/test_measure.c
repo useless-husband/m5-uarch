@@ -100,12 +100,23 @@ int main(void)
         CHECK(p.ok);
         CHECK_NEAR(p.ratio, 1.0, 0.03);
 
-        /* ua_run_counted sees the right number of instructions. */
-        ua_sample s1 = ua_run_counted(code, &ra, 1000), s2 = ua_run_counted(code, &ra, 3000);
-        if (s1.level == level && s2.level == level && s2.ins > s1.ins) {
-            long long d = (long long)(s2.ins - s1.ins) - 2000 * 18;
-            CHECK(d > -200 && d < 20000); /* exact unless an interrupt landed */
+        /* ua_run_counted sees the right number of instructions.  Kernel work
+         * on the thread's behalf only adds instructions, so the smallest
+         * difference of a few tries is the undisturbed one (a single try
+         * failed once on a busy machine). */
+        long long best = 0;
+        int have = 0;
+        for (int t = 0; t < 5; t++) {
+            ua_sample s1 = ua_run_counted(code, &ra, 1000), s2 = ua_run_counted(code, &ra, 3000);
+            if (s1.level == level && s2.level == level && s2.ins > s1.ins) {
+                long long d = (long long)(s2.ins - s1.ins) - 2000 * 18;
+                if (!have || llabs(d) < llabs(best))
+                    best = d;
+                have = 1;
+            }
         }
+        if (have)
+            CHECK(best > -200 && best < 20000); /* exact unless an interrupt landed */
     }
     CHECK(ua_measure(NULL, NULL, NULL).status == UA_BADCOUNT);
     if (!measured) {
