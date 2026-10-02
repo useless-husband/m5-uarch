@@ -87,7 +87,8 @@ def merge(runs: list[dict]) -> dict:
         "machine": machine,
         "cores": cores,
         "runs": [{
-            "started": r.get("started", ""),
+            # A submission leaves the start time out (see uarch_submit.py).
+            **({"started": r["started"]} if r.get("started") else {}),
             "seconds": r.get("seconds"),
             "counters": r["run"]["counters"],
             "timed_runs": r["run"]["runs"],
@@ -190,7 +191,7 @@ def merge(runs: list[dict]) -> dict:
             ok = [e for e in seen_exps if e["status"] == "ok" and e["value"] is not None]
             base = seen_exps[0]
             m: dict = {"id": eid, "title": base["title"], "unit": base["unit"]}
-            if len(ok) * 2 < len(seen_exps) or not ok:
+            if not conclusive(len(ok), len(seen_exps)):
                 m["status"] = "inconclusive"
                 m["value"] = None
                 m["confidence"] = "low"
@@ -201,7 +202,7 @@ def merge(runs: list[dict]) -> dict:
             else:
                 values = [e["value"] for e in ok]
                 med = statistics.median(values)
-                pick = min(ok, key=lambda e: abs(e["value"] - med))
+                pick = ok[pick_index(values)]
                 m["status"] = "ok"
                 m["value"] = _round(med)
                 m["min"] = _round(min(values))
@@ -225,6 +226,17 @@ def merge(runs: list[dict]) -> dict:
         if merged_exps:
             out["structure"][core] = merged_exps
     return out
+
+
+def conclusive(n_ok: int, n_seen: int) -> bool:
+    """A structure experiment counts if at least half of the runs that tried it got a value."""
+    return n_ok > 0 and n_ok * 2 >= n_seen
+
+
+def pick_index(values: list[float]) -> int:
+    """The run whose value is closest to the median: its note and curve are published."""
+    med = statistics.median(values)
+    return min(range(len(values)), key=lambda i: abs(values[i] - med))
 
 
 def _level(run: dict, label: str) -> dict:

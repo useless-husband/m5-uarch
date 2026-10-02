@@ -316,7 +316,10 @@ class ResultsTests(unittest.TestCase):
         self.assertTrue(any("round trip" in p for p in u.check(m)))
 
     def test_committed_results_are_valid(self):
-        for path in sorted((ROOT / "results").glob("*/*.json")):
+        paths = [p for p in sorted((ROOT / "results").glob("*/*.json"))
+                 if not p.name.endswith(".samples.json")]
+        self.assertTrue(paths)
+        for path in paths:
             data = u.load_results(path)
             self.assertEqual(u.check(data), [], path)
             self.assertEqual(u.dump_results(data), path.read_text(), f"{path} is not canonical")
