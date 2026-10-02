@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 (2026-10-02)
+
+Throughput from one steady state; the M5 re-measured.
+
+- A fresh measurement on an idle M5 failed its own anchor: `mov x0, #0x123400000000` at 13.06 per
+  cycle with NOPs at 10. Experiments (DESIGN.md, "Steady states") showed that no loop retires
+  more than 10.03 instructions per cycle, that the counted instructions and the cycle counter are
+  right, and that a loop of 64-bit immediate moves on the P-core settles, per run, in one of two
+  steady states (about 8.9 or 10 per cycle). The old estimator combined runs in different states.
+- Throughput (instruction table, width, unit counts) now uses the runs in the fastest state that
+  at least three runs reach, requires both loop lengths to agree on the fixed cost and on the
+  loop's own cost, measures again when they do not, and otherwise reports the longer loop's own
+  rate (marked `~`). Latencies are measured as before.
+- The published M5 dataset is re-measured with this version (five runs). 122 throughput figures
+  moved by more than 3 %, among them the x-register immediate moves (8.2-8.8 to 10.06), 30
+  P-core SIMD and FP operations that were above their four units (up to 4.89, now 4.00 or
+  below), and a post-indexed load above the three load units (3.43 to 3.00). P-core throughput
+  figures whose runs differ by more than 6 %: 17.9 % before, 2.9 % now. Latencies: none moved by
+  more than 3 %.
+- The width anchor is unchanged (nothing retires faster than NOPs) and now says why a violation
+  is an artefact; tests cover the 13-per-cycle case. Submissions must come from tool 0.3.0,
+  because earlier versions produce the mixed numbers.
+
 ## 0.2.0 (2026-10-02)
 
 Results from any Apple Silicon Mac: submit, check automatically, compare.

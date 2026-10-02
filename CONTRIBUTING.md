@@ -61,7 +61,7 @@ shows the same data as the pasted block, readably.
 | `machine.virtual_machine` | `false` | a virtual machine cannot measure |
 | `machine.pauth_keys_active` | `false` | explains the `pac*` figures |
 | `machine.levels[]` | `P`, `Super`, 4 cores, L1/L2 sizes | what "P-core" and "E-core" mean on this chip; the cache experiments are checked against it |
-| `tool_version`, `spec_sha256` | `0.2.0`, a digest | which tool and which instruction table measured |
+| `tool_version`, `spec_sha256` | `0.3.0`, a digest | which tool and which instruction table measured |
 | `runs[]` | seconds, counter interface, timed / clean / discarded loops, load average, clock per core type | conditions of each run, for the quality checks |
 | `helpers`, `instructions`, `structure` | every run's value of every figure | the measurements; all statistics are recomputed from these |
 | `stats_sha256` | a digest | proves the statistics follow from the values |

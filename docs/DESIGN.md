@@ -26,7 +26,7 @@ src/insn.c         copies words into a JIT loop, measures
 src/enc.h          tiny encoder for run-time-computed code (loop control, experiments)
 src/jit.c, tramp.S MAP_JIT arena; trampoline that loads and stores every register
 src/counters.c     thread_selfcounts / proc_pidinfo / proc_pid_rusage
-src/measure.c      two-point measurement, clean-run filter, fault guard
+src/measure.c      two-point measurement, clean-run filter, steady states, fault guard
 src/exp_*.c        structure experiments
 src/report.c       JSON
 tools/uarch_results.py   merge runs, check anchors, CSV
@@ -62,8 +62,8 @@ and 600 cycles, which is why nothing is ever measured as a single difference.
 The per-level split is what makes core-type verification possible. QoS class "user interactive"
 gets the thread onto a P-core and "background" onto an E-core almost always, but it is a request.
 The tool waits until the counters show the thread on the requested level, and then accepts a run
-only if the other level's counters did not move during it. In the published data 882 of
-1 043 000 runs were rejected for this.
+only if the other level's counters did not move during it. In the published data 660 of
+1 094 794 runs were rejected for this.
 
 ## Measuring one loop
 
@@ -115,8 +115,8 @@ chases that. 509 is prime, so each of the 31 or 93 load sites in the loop sees a
 turn rather than a short repeating subset. Index-register forms chase a cycle of indices, byte
 loads a cycle of 127 byte values.
 
-**Select prediction.** A chain through `csel` measured between 0.25 and 0.9 cycles on the P-core
-whenever the condition never changed (`csel_const_cond`). Conditional selects are therefore
+**Select prediction.** A chain through `csel` measured between 0.25 and 0.85 cycles on the P-core
+in most runs whenever the condition never changed (`csel_const_cond`). Conditional selects are therefore
 measured with `flip`: before every counted run the loop executes a few iterations with NZCV
 inverted, so no select ever sees a constant condition; and the flag-to-result chain is built so
 that the condition alternates from step to step, with an odd number of steps so that it also
@@ -132,7 +132,7 @@ A block of independent instances, each writing a different register, repeated to
 instances per iteration.
 
 **Shared sources.** With every instance reading the same source registers, integer throughput on
-the P-core came out low and erratic (`add xN, x19, x19`: 3.0 per cycle undiluted, see
+the P-core came out low and erratic (`add xN, x19, x19`: 3.01 per cycle undiluted, see
 `units_alu_same_src`), while the E-core was exact (4.00). The numbers depend on which registers the
 instructions read, not on the instruction. In the table, read-only integer operands therefore
 rotate through eight registers so that no register is read by every instance. The sensitivity is
@@ -144,6 +144,75 @@ own dependency chain across iterations. With c chains and latency L, throughput 
 whatever the hardware has. When the measured value is within 6 % of that bound the result is
 flagged as limited by its own chain.
 
+### Steady states (a move at 13 per cycle)
+
+A fresh `make measure` on an idle M5 failed its own anchor: `mov x0, #0x123400000000` (one
+MOVZ) at 13.06 per cycle and `mov x0, #0x5555555555555555` (one ORR) at 11.19, on a P-core whose
+NOPs run at 10. The same instructions had been published at 8.3 and 8.2. Either something in the
+core sustains more than NOPs do, or the measurement was wrong. These checks were run on the
+P-core with the tool's own counters and loop builder (100 to 400 counted runs per case; the
+throughput block as in the table: 324 or 648 copies, 18 destination registers):
+
+| Question | Experiment | Result |
+|---|---|---|
+| Do the counted instructions match what ran? | instructions of every run, fast and slow | identical in both: the loop's count plus 1965 for the counter calls |
+| Does the cycle counter misbehave? | cycles per nanosecond of wall clock, per run | the same in fast and slow runs (2.59 and 2.58 GHz, 2.99 and 2.98, 3.42 and 3.41 in three series); both kinds of run at every clock from 1.4 to 4.5 GHz |
+| Does any loop exceed the width? | instructions retired per cycle over whole runs, counter cost removed | NOPs 10.03 (326 instructions in 32.5 cycles, as if the loop's own two took one slot); 64-bit immediate moves either about 8.95 or 9.87 to 9.99, never more; no loop above 10.03 |
+| Is it one particular core? | `pthread_cpu_number_np` before and after 400 runs | all on one P-core: 189 fast, 211 slow |
+| Warm-up, run order? | up to 64 times a run's length of the same loop before each counted run | fast share unchanged (9 to 26 % at 648 copies); consecutive runs switch at random; longer runs are more often fast (45 % of 4 000-cycle runs, 91 % of 4-million-cycle runs) |
+| Unroll, destinations | 36 to 2592 copies; 1 to 26 destination registers | the same two states; the fast share falls from 91 % at 72 copies to 15 to 29 % at 648 and more; destinations make no difference |
+| Mixed with other work | 1:1 with NOPs, with `mov x, x`, with `mov x, #0`; with adds | 10.01 per cycle together; with adds 8.98 |
+| Other zero-source instructions | MOVZ with shifts 0 to 48, MOVN, ORR bitmask, `mov x, xzr`, `adr`, `adrp` | MOVZ, MOVN, ORR: the same two states; `mov w, #imm` always 8.93; `mov x, #0` and `mov x, x` always 10; `mov x, xzr` 7.70 like an add; `adr`, `adrp` 5.00 |
+
+So the 13 was an artefact, and the width of 10 stands. What is real: a run of 64-bit immediate
+moves on the P-core settles in one of two steady states, about 8.9 per cycle (more than the eight
+integer ALUs) or the full width, drawn afresh each time the loop is entered. Zeroing moves and
+register moves always run at the width, consistent with being handled at rename; 32-bit immediate
+moves never do. What selects the state is not visible to these counters. Other loops have states
+too: a vector loop (`ssra`) stayed in a slower one for about 200 consecutive runs and then
+switched; integer adds have a few 1 to 3 % apart.
+
+The old estimator assumed one state. It subtracted the medians of the runs at n and 2n iterations,
+then the results for k and 2k copies; four sets of runs, each free to be in either state. A
+k-copy loop in the slow state (36.2 cycles per iteration) against a 2k-copy loop in the fast one
+(65.2) gives 324 / 29.0 = 11.2 per cycle, and a mixed n/2n pair amplifies it further (2a − b).
+Because the fast share depends on the loop length, the busy machine's five runs converged on 8.2,
+which is neither state. Simulated on 300 recorded runs per set, the old estimator gives 6.5 to
+17.4 for `mov_x_imm48` from seven pairs and 8.20 from 96. The same mixing put P-core SIMD
+operations at 4.1 to 4.9 per cycle on four units, and a post-indexed load at 3.43 on three load
+units.
+
+Throughput measurements (the table, width and unit counts) now work like this:
+
+- **One state.** Only the runs in the fastest state that at least three runs reach (within 1 %)
+  are used (`ua_fastest_state`), and sampling continues, up to 96 pairs, until both lengths have
+  five of them. A lone faster run is not a state.
+- **The fixed cost must be plausible.** `2·median(n) − median(2n)` is the cost of a run apart
+  from its iterations, about 600 cycles or 1.5 % of a run. Runs at n in a state d slower than
+  those at 2n move it by 2d, so it must lie between −1 % and 5 % of a run.
+- **The loop's own cost must be plausible.** `2·c(k) − c(2k)` is what the loop branch costs per
+  iteration: within 1 % or a cycle below zero and 2 % plus two cycles above. Otherwise the two
+  loops were in different states, and both are measured again, up to three times (states that last
+  milliseconds).
+- **If they keep disagreeing**, the cost per copy depends on the loop length: branch-dense loops,
+  where the branch predictors see twice as many sites, and some vector and atomic loops. The result
+  is then the longer loop's own rate, loop branch included, a rate the core really sustained,
+  marked `~` in the text output. In one full run that was 37 of the 1 848 throughput figures;
+  the results file does not mark them.
+
+Simulated on the same recorded runs, this gives 10.03 to 10.07 for `mov_x_imm48`. The fastest
+state measures 10.06, not 10.00, because the two loops do not lose quite the same at the loop
+edge: the 324 extra copies take 32.2 cycles where 10 per cycle needs 32.4. The anchor allows 6 %.
+Re-measured, the P-core SIMD and FP arithmetic in the table that the old data put above four per
+cycle is at 4.00 or below (it was above in 30 entries, the most at 4.89), the immediate moves at 10.06, and the share of P-core
+throughput figures whose five runs differ by more than 6 % fell from 17.9 % to 2.9 %. Latencies
+are measured as before (a predicted fast state there would be a different number, not a better
+one); none of them moved by more than 3 %.
+
+Rejected: the minimum instead of the median. From seven pairs one of the four sets often has no
+run in the fast state (6.9 to 12.8 per cycle), and runs that change state halfway make even 96
+pairs give up to 10.22.
+
 ## Structure experiments
 
 ### Width and unit counts
@@ -152,7 +221,8 @@ NOPs need no execution unit, so their sustained rate is the pipeline width. For 
 pure stream of one instruction kind does not reach the number of units on the P-core (adds: 7.7
 per cycle), because uops are assigned to schedulers at dispatch and the assignment is not
 perfectly balanced. Diluting the stream with NOPs, r instructions per group of W, gives the
-balancer slack; the best rate over all r is reported (adds: 7.92, that is 8 units).
+balancer slack; the best rate over all r is reported (adds: 7.93, that is 8 units). Both rates
+come from the fastest steady state (above).
 
 ### Window sizes (Henry Wong's method)
 
@@ -172,7 +242,7 @@ difference directly.
 
 *Ratios of alternating runs.* A miss lasts a fixed time, not a fixed number of cycles, and the
 E-cluster's clock is not fixed: the median E-core clock of the five published runs ranged from
-2.0 to 3.0 GHz (`runs[].ghz_observed` in the results file). Comparing a loop measured at one
+1.6 to 1.9 GHz (`runs[].ghz_observed` in the results file; 2.0 to 3.0 in the earlier dataset). Comparing a loop measured at one
 frequency with a baseline measured at another gave knees at random places. Now each point
 alternates single runs of the test loop and of a control loop (the same code with the second
 chase replaced by cache hits), keeps only pairs in which both runs were clean and ran at the same
@@ -184,7 +254,7 @@ the confidence drops.
 
 The "reorder buffer in ordinary instructions" uses a blend of fillers in proportion to the
 capacities just measured for each kind, so that none of the individual structures fills first.
-On the P-core it stops at 1330, well short of the roughly 1730 that the individual capacities
+On the P-core it stops at 1330 to 1334, well short of the roughly 1730 that the individual capacities
 would allow, so something shared ran out. It is not a plain entry count: Apple's reorder buffer
 holds several instructions per entry (NOPs: 3367), so the number depends on the blend and is
 labelled that way.
@@ -257,8 +327,8 @@ stale build), and the validator refuses a `spec_sha256` other than its own. A te
 the Python regeneration equals what the C tool wrote into the committed results.
 
 The armoured text is gzip + base64 between `-----BEGIN M5-UARCH SUBMISSION-----` and `-----END`
-lines, with a header (format, chip, SHA-256 of the JSON). The M5's five runs come to 54 496
-characters, three runs (the default) to about 42 000; the packer refuses more than 60 000, which
+lines, with a header (format, chip, SHA-256 of the JSON). The M5's five runs come to 48 376
+characters, three runs (the default) to about 40 000; the packer refuses more than 60 000, which
 leaves room for the rest of the form. The reader finds the block anywhere in the issue body, so
 the form's code fence, Windows line ends or indentation do not matter, and it caps decompression
 at 4 MB.
@@ -289,7 +359,7 @@ anything flags, accepted otherwise.
 | Format and privacy | unknown fields anywhere, wrong types, strings that are not chip/model/OS patterns, anything that looks like a path, e-mail address, UUID, serial number or `.local` host name | |
 | Tool version | version not in the accepted list; instruction-table digest differs | |
 | Statistics | statistics rebuilt from the per-run values differ from `stats_sha256` (issue) or from the results file (pull request; the first differing values are named) | |
-| Anchors | add, sub, eor not 1 cycle; cmp + csinc not 2; implausible values; a single instruction faster than the width | |
+| Anchors | add, sub, eor not 1 cycle; cmp + csinc not 2; implausible values; a single instruction more than 6 % faster than the width (nothing retires faster than NOPs: such a number mixes steady states) | |
 | Consistency | width outside 2–16; a unit count above the width; L1 latency outside 2–8; reorder buffer outside 64–16 384 | misprediction penalty outside 4–40; NOP throughput and the width experiment more than 10 % apart; adds faster than the ALU count; L1D more than ×2 from what macOS reports; P-core smaller than E-core (width, window, ALUs, loads, FP adds, integer renames, by more than 5 %); P-cores clocked below the E-cores |
 | Run quality | | more than 25 % of loops disturbed, 5 % migrated, or 20 % of experiments inconclusive |
 | Duplicate | same content id or same statistics as a published dataset | |
@@ -302,13 +372,14 @@ chip's earlier datasets. The value is an outlier if it is further from c than
     max(5 × 1.4826 × MAD, r × |c|, a) + half its own run range + the median half run range of the others
 
 where MAD (the median absolute deviation) needs three earlier datasets, and r, a are 5 % and
-0.05 cycles for latencies, 15 % and 0.10 per cycle for throughputs (P-core throughput moves by
-more than 6 % between runs for one figure in five), 15 % for structure figures. The run ranges
+0.05 cycles for latencies, 15 % and 0.10 per cycle for throughputs (in the earlier dataset one P-core
+throughput figure in five moved by more than 6 % between runs; since tool 0.3.0, which measures
+one steady state, one in 35), 15 % for structure figures. The run ranges
 count as slack because a value whose own runs disagreed is weak evidence either way.
 
 Calibration on real data: the M5's five runs split into a 2-run and a 3-run group, all ten
-splits, each side checked against the other: 24 of 95 076 comparisons fell outside the rule, at
-most 3 of about 4 750 values in one comparison (0.06 %). So honest repeat measurements do leave a
+splits, each side checked against the other: 32 of 95 062 comparisons fell outside the rule, at
+most 7 of about 4 750 values in one comparison (0.15 %; 24 and 3 in the earlier dataset). So honest repeat measurements do leave a
 few values outside. A submission is therefore flagged as a whole only when more than 0.5 % of its
 values are outliers; below that the values are listed in the comment as a note and marked on the
 site, and the verdict is unchanged. A test perturbs every M5 throughput by up to 0.3 %, makes one
@@ -384,7 +455,8 @@ Who can attack: anyone who can open an issue or a pull request. What is at stake
 See `tests/`. The encoder is compared with the assembler on 2800 randomised cases; every table
 entry is executed once and must run or raise SIGILL, and pointer chases must stay inside their
 cycle; statistics have seeded property tests (one of which found a real bug in the step
-detector); the measurement layer is tested against the counters where they exist; the Python
+detector), the steady-state selection among them, and a regression test on the real counters
+checks that the immediate moves never measure above the NOP rate; the measurement layer is tested against the counters where they exist; the Python
 tools have their own tests, including a check that the committed results are canonical and pass
 the anchors. The submission tools are tested rule by rule (`tests/test_submission.py`,
 `tests/test_validate.py`, `tests/test_site.py`): the packer round trip, the privacy filter with

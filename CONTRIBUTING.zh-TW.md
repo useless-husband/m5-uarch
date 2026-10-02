@@ -47,7 +47,7 @@ make submit-pr
 | `machine.virtual_machine` | `false` | 虛擬機量不了 |
 | `machine.pauth_keys_active` | `false` | 解釋 `pac*` 指令的數字 |
 | `machine.levels[]` | `P`、`Super`、4 核、L1/L2 大小 | 這顆晶片上「P 核」「E 核」指的是什麼；快取實驗會拿它來對照 |
-| `tool_version`、`spec_sha256` | `0.2.0`、一段摘要值 | 用哪一版工具、哪一份指令表量的 |
+| `tool_version`、`spec_sha256` | `0.3.0`、一段摘要值 | 用哪一版工具、哪一份指令表量的 |
 | `runs[]` | 秒數、計數器介面、量了幾次／乾淨幾次／丟掉幾次、系統負載、各核心時脈 | 每一輪的量測條件，給品質檢查用 |
 | `helpers`、`instructions`、`structure` | 每一輪、每一個數字的值 | 量測本身；所有統計值都從這裡重算 |
 | `stats_sha256` | 一段摘要值 | 證明統計值確實是從這些數字算出來的 |
