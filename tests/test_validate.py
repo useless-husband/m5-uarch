@@ -145,11 +145,22 @@ class AnchorAndConsistencyTests(unittest.TestCase):
             "add takes 1.4 cycles": {"lat:P:add_x_reg": 1.4},
             "eor takes 2 cycles": {"lat:E:eor_x_reg": 2},
             "throughput above the width": {"tp:E:add_x_reg": 9.0},
+            "an immediate move at 13 per cycle (tool 0.2.0, idle M5)": {"tp:P:mov_x_imm48": 13.058},
         }.items():
             with self.subTest(what):
                 rep = check(F.packed(SP, value=override(**ov)))
                 self.assertEqual(rep.verdict, "rejected")
                 self.assertIn("anchors", rules(rep, "reject"))
+
+    def test_fast_state_at_the_loop_edge_is_accepted(self):
+        # The fixture's immediate move runs at 10.065 per cycle against NOPs at 10, as the
+        # fastest steady state does on the M5 P-core; up to 6 % above the width is the loop edge.
+        for v in (10.065, 10.5):
+            with self.subTest(v):
+                rep = check(F.packed(SP, value=override(**{"tp:P:mov_x_imm48": v})))
+                self.assertNotIn("anchors", rules(rep, "reject"), rep.findings)
+        rep = check(F.packed(SP, value=override(**{"tp:P:mov_x_imm48": 13.058})))
+        self.assertTrue(any("steady states" in f.text for f in rep.findings), rep.findings)
 
     def test_hard_inconsistencies_reject(self):
         for what, ov in {

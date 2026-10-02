@@ -37,6 +37,7 @@ sve_add | add {W0:z}.d, {R0:z}.d, {R1:z}.d
 ext -
 group Other
 nop | nop | nolat
+mov_x_imm48 | mov {W0:x}, #0x123400000000
 """
 
 
@@ -47,10 +48,12 @@ def spec() -> us.Spec:
 # Per core: (latency per instruction, throughput per instruction)
 LAT = {"add_x_reg": 1, "sub_x_reg": 1, "eor_x_reg": 1, "add_x_imm": 1, "mul_x": 3, "cmp_x": 1,
        "fmla_2d": 4}
+# mov_x_imm48: the fastest steady state of an immediate move on the M5 P-core
+# measures 10.065 per cycle against a NOP rate of 10 (the loop edge).
 TP = {"P": {"add_x_reg": 7.0, "sub_x_reg": 7.0, "eor_x_reg": 7.0, "add_x_imm": 7.7, "mul_x": 3,
-            "cmp_x": 3.9, "fmla_2d": 4, "nop": 10},
+            "cmp_x": 3.9, "fmla_2d": 4, "nop": 10, "mov_x_imm48": 10.065},
       "E": {"add_x_reg": 4, "sub_x_reg": 4, "eor_x_reg": 4, "add_x_imm": 4, "mul_x": 1,
-            "cmp_x": 3.9, "fmla_2d": 2, "nop": 6}}
+            "cmp_x": 3.9, "fmla_2d": 2, "nop": 6, "mov_x_imm48": 6}}
 STRUCT = {"P": {"width": 10, "units_alu": 7.9, "rob_nop": 3367, "l1_latency": 3, "l1d_size": 128},
           "E": {"width": 6, "units_alu": 4, "rob_nop": 1072, "l1_latency": 3, "l1d_size": 64}}
 

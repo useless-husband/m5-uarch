@@ -363,15 +363,33 @@ def check(data: dict) -> list[str]:
             for cell in c.get("lat", []) or []:
                 if cell and not (-0.2 < cell[0] < 400):
                     problems.append(f"{core}: {ins['name']} latency {cell[0]} is not plausible")
-        width = next((e for e in data["structure"].get(core, []) if e["id"] == "width"), None)
-        if width and width["status"] == "ok":
-            for ins in data["instructions"]:
-                tp = ins.get(core, {}).get("tp")
-                # One instance may be several instructions; only single ones are bounded.
-                if tp and ";" not in ins["asm"] and tp[0] > width["value"] * 1.06:
-                    problems.append(f"{core}: {ins['name']} throughput {tp[0]} exceeds the "
-                                    f"pipeline width {width['value']}")
+        problems += width_problems(data, core)
     return problems
+
+
+# No instruction stream retires faster than NOPs.  On the M5 P-core no loop
+# that was timed for this (immediate and register moves, NOPs, adds, address
+# generation, and mixes of them) retired more than 10.03 instructions per
+# cycle, the loop's own two included.  The slack covers the loop edge: the
+# fastest state of the immediate moves measures 10.06, a register move 10.12
+# in some runs (DESIGN.md, "Steady states").
+WIDTH_SLACK = 1.06
+
+
+def width_problems(data: dict, core: str) -> list[str]:
+    """Single instructions faster than the pipeline width: a measurement artefact."""
+    width = next((e for e in data["structure"].get(core, []) if e["id"] == "width"), None)
+    if not width or width["status"] != "ok":
+        return []
+    out = []
+    for ins in data["instructions"]:
+        tp = ins.get(core, {}).get("tp")
+        # One instance may be several instructions; only single ones are bounded.
+        if tp and ";" not in ins["asm"] and tp[0] > width["value"] * WIDTH_SLACK:
+            out.append(f"{core}: {ins['name']} throughput {tp[0]} exceeds the pipeline width "
+                       f"{width['value']}; nothing retires faster than NOPs, so runs in different "
+                       "steady states were combined (tool 0.3.0 measures one state)")
+    return out
 
 
 # --------------------------------------------------------------------------

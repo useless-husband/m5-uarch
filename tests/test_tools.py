@@ -195,9 +195,10 @@ class ExpandTests(unittest.TestCase):
         self.assertEqual(int(re.search(r"ua_n_code_marks = (\d+);", c).group(1)), marks)
 
 
-def raw_run(add_lat=1.0, tp=4.0, rob=600.0, rob_status="ok", brand="Apple Test"):
+def raw_run(add_lat=1.0, tp=4.0, rob=600.0, rob_status="ok", brand="Apple Test", width=8.0,
+            asm="add x0, x19, x20"):
     ins = {
-        "name": "add_x_reg", "group": "Integer", "ext": "", "asm": "add x0, x19, x20",
+        "name": "add_x_reg", "group": "Integer", "ext": "", "asm": asm,
         "P": {"tp": {"status": "ok", "per_cycle": tp, "cycles": 1 / tp, "spread": 0.001},
               "lat": [{"from": "R0:x0", "to": "W0:x0", "status": "ok", "cycles": add_lat,
                        "spread": 0.0, "chain": "add x0, x0, x20"}]},
@@ -220,8 +221,8 @@ def raw_run(add_lat=1.0, tp=4.0, rob=600.0, rob_status="ok", brand="Apple Test")
                           "fcmp_fcsel_roundtrip": 4.0}},
         "instructions": [ins] + others,
         "structure": {"P": [
-            {"id": "width", "title": "Width", "unit": "per cycle", "status": "ok", "value": 8.0,
-             "lo": 8.0, "hi": 8.0, "confidence": "high", "note": "n"},
+            {"id": "width", "title": "Width", "unit": "per cycle", "status": "ok", "value": width,
+             "lo": width, "hi": width, "confidence": "high", "note": "n"},
             {"id": "rob", "title": "ROB", "unit": "entries", "status": rob_status,
              "value": rob if rob_status == "ok" else None, "lo": rob, "hi": rob,
              "confidence": "high", "note": "n", "xlabel": "x", "ylabel": "y",
@@ -319,6 +320,26 @@ class ResultsTests(unittest.TestCase):
         m = u.merge([raw_run()])
         m["helpers"]["P"]["cmp_csinc_roundtrip"] = [3.0, 3.0, 3.0]
         self.assertTrue(any("round trip" in p for p in u.check(m)))
+
+    def test_width_bound_is_the_nop_rate(self):
+        # Tool 0.2.0 on an idle M5: one immediate move at 13 per cycle, NOPs at 10.  Nothing
+        # retires faster than NOPs (DESIGN.md, "Steady states"), so it is rejected, with why.
+        probs = u.check(u.merge([raw_run(tp=13.058, width=10.0)]))
+        self.assertEqual(len(probs), 1, probs)
+        self.assertIn("exceeds the pipeline width 10.0", probs[0])
+        self.assertIn("steady states", probs[0])
+        # The fastest state of the same move measures 10.065 (the loop edge): accepted.
+        self.assertEqual(u.check(u.merge([raw_run(tp=10.065, width=10.0)])), [])
+        # The slack is 6 %, and not more.
+        self.assertEqual(u.width_problems(u.merge([raw_run(tp=10.59, width=10.0)]), "P"), [])
+        self.assertEqual(len(u.width_problems(u.merge([raw_run(tp=10.61, width=10.0)]), "P")), 1)
+        # Several instructions per instance are not bounded by the width.
+        multi = u.merge([raw_run(tp=13.0, width=10.0, asm="add x0, x19, x20 ; nop")])
+        self.assertEqual(u.width_problems(multi, "P"), [])
+        # Without a conclusive width experiment there is nothing to compare with.
+        broken = u.merge([raw_run(tp=13.0, width=10.0)])
+        broken["structure"]["P"][0]["status"] = "inconclusive"
+        self.assertEqual(u.width_problems(broken, "P"), [])
 
     def test_committed_results_are_valid(self):
         paths = [p for p in sorted((ROOT / "results").glob("*/*.json"))
