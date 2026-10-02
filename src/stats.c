@@ -186,3 +186,26 @@ ua_step ua_find_step(const double *x, const double *y, size_t n, double min_rati
 }
 
 double ua_round_to(double v, double q) { return q > 0 ? round(v / q) * q : v; }
+
+size_t ua_fastest_state(const double *a, size_t n, double tol, size_t *idx)
+{
+    double *v = malloc((n ? n : 1) * sizeof *v);
+    if (!v)
+        return 0;
+    memcpy(v, a, n * sizeof *v);
+    ua_sort(v, n);
+    double lo = n ? v[0] : 0;
+    double hi = n ? v[n - 1] : 0;
+    for (size_t i = 0; i + 2 < n; i++)
+        if (v[i + 2] <= v[i] * (1.0 + tol)) {
+            lo = v[i];
+            hi = v[i] * (1.0 + tol);
+            break;
+        }
+    free(v);
+    size_t m = 0;
+    for (size_t i = 0; i < n; i++)
+        if (a[i] >= lo && a[i] <= hi)
+            idx[m++] = i;
+    return m;
+}

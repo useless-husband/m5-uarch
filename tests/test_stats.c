@@ -131,6 +131,63 @@ static void test_step(void)
     CHECK(!ua_find_step(fx, hy, 6, 1.3).found);
 }
 
+/* Steady states: the measured loop settles in one of a few states per run
+ * (DESIGN.md, "Steady states"); the fastest one must be found exactly. */
+static void test_fastest_state(void)
+{
+    size_t idx[64];
+    /* Two states 10 % apart, mixed: only the fast one. */
+    double two[] = {110.1, 100.2, 110.0, 100.0, 109.9, 100.1, 110.2, 100.3, 110.0};
+    CHECK(ua_fastest_state(two, 9, 0.01, idx) == 4);
+    for (int i = 0; i < 4; i++)
+        CHECK(two[idx[i]] < 101);
+    /* A lone fast outlier is not a state. */
+    double lone[] = {90.0, 100.0, 100.4, 100.2, 107.0};
+    CHECK(ua_fastest_state(lone, 5, 0.01, idx) == 3);
+    for (int i = 0; i < 3; i++)
+        CHECK(lone[idx[i]] >= 100.0 && lone[idx[i]] <= 100.4);
+    /* Two outliers that are not within 1 % of each other either. */
+    double two_lone[] = {80.0, 90.0, 100.0, 100.5, 100.9, 101.5};
+    CHECK(ua_fastest_state(two_lone, 6, 0.01, idx) == 3);
+    /* No three values agree: everything, as a plain median would. */
+    double spread[] = {100, 103, 106, 109, 112};
+    CHECK(ua_fastest_state(spread, 5, 0.01, idx) == 5);
+    CHECK(ua_fastest_state(spread, 2, 0.01, idx) == 2);
+    CHECK(ua_fastest_state(spread, 0, 0.01, idx) == 0);
+    /* A single state is taken whole. */
+    double one[] = {50.0, 50.1, 50.05, 50.2, 49.98};
+    CHECK(ua_fastest_state(one, 5, 0.01, idx) == 5);
+
+    /* Property: any mixture of a fast state (at least three runs) and slower
+     * states 3 to 20 % above it, in any order, yields exactly the fast runs. */
+    unsigned long long st = SEED ^ 0x5157;
+    for (int trial = 0; trial < 500; trial++) {
+        size_t n = 3 + (size_t)(test_rand(&st) % 60), nfast = 3 + (size_t)(test_rand(&st) % (n - 2));
+        if (nfast > n)
+            nfast = n;
+        double base = 1000.0 + (double)(test_rand(&st) % 100000), a[64];
+        for (size_t i = 0; i < n; i++) {
+            double jitter = (double)(test_rand(&st) % 1000) / 1000.0 * 0.004 * base;
+            double slow = i < nfast ? 0 : (0.03 + (double)(test_rand(&st) % 170) / 1000.0) * base;
+            a[i] = base + jitter + slow;
+        }
+        for (size_t i = n - 1; i > 0; i--) {
+            size_t j = (size_t)(test_rand(&st) % (i + 1));
+            double t = a[i];
+            a[i] = a[j];
+            a[j] = t;
+        }
+        size_t m = ua_fastest_state(a, n, 0.01, idx);
+        CHECK(m == nfast);
+        for (size_t i = 0; i < m; i++)
+            CHECK(a[idx[i]] < base * 1.03);
+        if (g_failures) {
+            fprintf(stderr, "seed %#llx trial %d (n=%zu fast=%zu)\n", SEED ^ 0x5157, trial, n, nfast);
+            return;
+        }
+    }
+}
+
 int main(void)
 {
     test_basic();
@@ -138,5 +195,6 @@ int main(void)
     test_linfit();
     test_properties();
     test_step();
+    test_fastest_state();
     return test_finish("test_stats");
 }

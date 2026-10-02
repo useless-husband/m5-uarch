@@ -4,6 +4,7 @@
 #include "stats.h"
 
 #include <mach/mach_time.h>
+#include <math.h>
 #include <pthread.h>
 #include <pthread/qos.h>
 #include <sched.h>
@@ -18,6 +19,18 @@
 #define INS_TOLERANCE 64
 /* Slack when comparing the counted instructions with the generator's. */
 #define COUNT_TOLERANCE 12
+/* Steady states (measure.h).  A run is in the fastest state if it took at
+ * most STATE_TOL longer than the fastest time that three clean runs of the
+ * same length reach (ua_fastest_state).  The states seen on the M5 are 3 %
+ * or more apart, the scatter inside one well under 1 %. */
+#define STATE_TOL 0.01
+#define STATE_MIN 5
+/* Plausible fixed cost per run as a fraction of a run at n1.  The counter
+ * reads cost about 600 cycles of the 40 000 a run is sized for (1.5 %).
+ * Runs at n1 in a state d slower (relative) than the runs at 2n1 move the
+ * implied value by 2d, so a mix of states 2 % or more apart lands outside. */
+#define FIXED_LO (-0.01)
+#define FIXED_HI 0.05
 
 static sigjmp_buf g_jmp;
 static volatile sig_atomic_t g_guard_armed;
@@ -255,6 +268,42 @@ static void select_clean(const run_sample *s[2], int runs, int want_level, int *
     }
 }
 
+/* The runs a result is computed from: every clean run, or with `fastest`
+ * only those in the fastest steady state.  Returns 1 if the selection is
+ * usable: at least `want` runs at each length and, with `fastest`, a
+ * plausible implied fixed cost. */
+typedef struct {
+    double cyc[2][256], ns[2][256];
+    size_t n[2];
+    double fixed;
+} chosen_runs;
+
+static int choose_runs(const clean_set *cs, int fastest, size_t want, chosen_runs *ch)
+{
+    static size_t idx[256];
+    for (int k = 0; k < 2; k++) {
+        size_t m;
+        if (fastest) {
+            m = ua_fastest_state(cs->cyc[k], cs->n[k], STATE_TOL, idx);
+        } else {
+            m = cs->n[k];
+            for (size_t i = 0; i < m; i++)
+                idx[i] = i;
+        }
+        for (size_t i = 0; i < m; i++) {
+            ch->cyc[k][i] = cs->cyc[k][idx[i]];
+            ch->ns[k][i] = cs->ns[k][idx[i]];
+        }
+        ch->n[k] = m;
+    }
+    ch->fixed = NAN;
+    if (ch->n[0] < want || ch->n[1] < want)
+        return 0;
+    double med1 = ua_median(ch->cyc[0], ch->n[0]), med2 = ua_median(ch->cyc[1], ch->n[1]);
+    ch->fixed = 2.0 * med1 - med2; /* n2 = 2 n1 */
+    return !fastest || (ch->fixed >= FIXED_LO * med1 && ch->fixed <= FIXED_HI * med1);
+}
+
 ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
 {
     ua_mopts o = opts_in ? *opts_in : ua_mopts_default(-1);
@@ -282,6 +331,7 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
     }
 
     static run_sample s1[256], s2[256];
+    static chosen_runs ch;
     const run_sample *s[2] = {s1, s2};
     clean_set cs;
     volatile int runs = 0;
@@ -332,7 +382,8 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
         runs++;
         if (runs >= o.min_clean) {
             select_clean(s, runs, o.level, &level, &cs);
-            if (cs.n[0] >= (size_t)o.min_clean && cs.n[1] >= (size_t)o.min_clean)
+            if (cs.n[0] >= (size_t)o.min_clean && cs.n[1] >= (size_t)o.min_clean &&
+                (!o.fastest || choose_runs(&cs, 1, STATE_MIN, &ch)))
                 break;
         }
     }
@@ -353,25 +404,31 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
         m.status = (cs.migrated >= 2 * runs - 4) ? UA_WRONGLEVEL : UA_NOISY;
         return m;
     }
+    int consistent = choose_runs(&cs, o.fastest, 3, &ch);
+    if (ch.n[0] < 3 || ch.n[1] < 3) {
+        m.status = UA_NOISY;
+        return m;
+    }
 
     double dn = (double)(n2 - n1);
-    double med1 = ua_median(cs.cyc[0], cs.n[0]), med2 = ua_median(cs.cyc[1], cs.n[1]);
+    double med1 = ua_median(ch.cyc[0], ch.n[0]), med2 = ua_median(ch.cyc[1], ch.n[1]);
     m.cyc = (med2 - med1) / dn;
     m.cyc_min = (ua_min(cs.cyc[1], cs.n[1]) - ua_min(cs.cyc[0], cs.n[0])) / dn;
+    m.fixed = ch.fixed;
     m.ins = (double)(cs.ref[1] - cs.ref[0]) / dn;
     m.ghz = cs.nghz ? ua_median(cs.ghz, cs.nghz) : 0;
-    m.ns = (ua_median(cs.ns[1], cs.n[1]) - ua_median(cs.ns[0], cs.n[0])) / dn;
+    m.ns = (ua_median(ch.ns[1], ch.n[1]) - ua_median(ch.ns[0], ch.n[0])) / dn;
     m.ns_min = (ua_min(cs.ns[1], cs.n[1]) - ua_min(cs.ns[0], cs.n[0])) / dn;
 
-    ua_sort(cs.cyc[0], cs.n[0]);
-    ua_sort(cs.cyc[1], cs.n[1]);
-    double iqr = (ua_quantile_sorted(cs.cyc[0], cs.n[0], 0.75) -
-                  ua_quantile_sorted(cs.cyc[0], cs.n[0], 0.25)) +
-                 (ua_quantile_sorted(cs.cyc[1], cs.n[1], 0.75) -
-                  ua_quantile_sorted(cs.cyc[1], cs.n[1], 0.25));
+    ua_sort(ch.cyc[0], ch.n[0]);
+    ua_sort(ch.cyc[1], ch.n[1]);
+    double iqr = (ua_quantile_sorted(ch.cyc[0], ch.n[0], 0.75) -
+                  ua_quantile_sorted(ch.cyc[0], ch.n[0], 0.25)) +
+                 (ua_quantile_sorted(ch.cyc[1], ch.n[1], 0.75) -
+                  ua_quantile_sorted(ch.cyc[1], ch.n[1], 0.25));
     m.spread = (med2 > med1) ? iqr / (med2 - med1) : 0;
 
-    if (cs.n[0] < (size_t)o.min_clean || cs.n[1] < (size_t)o.min_clean)
+    if (cs.n[0] < (size_t)o.min_clean || cs.n[1] < (size_t)o.min_clean || !consistent)
         m.status = UA_NOISY;
     if (o.expect_ins) {
         /* Compare absolute counts.  The counter system call's own path
@@ -384,6 +441,12 @@ ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts_in)
             m.status = UA_BADCOUNT;
     }
     return m;
+}
+
+int ua_loop_cost_plausible(double c1, double c2)
+{
+    double extra = 2.0 * c1 - c2;
+    return extra >= -1.0 - 0.01 * c1 && extra <= 2.0 + 0.02 * c1;
 }
 
 ua_sample ua_run_counted(const void *code, ua_regs *regs, uint64_t iters)

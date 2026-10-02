@@ -83,6 +83,24 @@ double ua_exp_cycles(ua_emit_fn emit, void *ctx, ua_regs *regs, int level)
     return m.status == UA_OK ? m.cyc : NAN;
 }
 
+double ua_exp_rate(ua_emit_fn emit, void *ctx1, void *ctx2, double work, int level)
+{
+    ua_mopts o = ua_mopts_default(level);
+    o.fastest = 1;
+    for (int attempt = 0; attempt < UA_TP_ATTEMPTS; attempt++) {
+        ua_regs regs;
+        ua_regs_default(&regs);
+        ua_meas m1 = ua_exp_measure(emit, ctx1, &regs, level, 1, &o);
+        ua_regs_default(&regs);
+        ua_meas m2 = ua_exp_measure(emit, ctx2, &regs, level, 1, &o);
+        if (m1.status == UA_OK && m2.status == UA_OK && ua_loop_cost_plausible(m1.cyc, m2.cyc))
+            return m2.cyc > m1.cyc ? work / (m2.cyc - m1.cyc) : NAN;
+        if (attempt == UA_TP_ATTEMPTS - 1 && m2.status == UA_OK && m2.cyc > 0)
+            return 2.0 * work / m2.cyc; /* the longer loop's own rate (see insn.c) */
+    }
+    return NAN;
+}
+
 static void carry(ua_regs *regs, uint32_t mask)
 {
     for (int i = 0; i < 31; i++)

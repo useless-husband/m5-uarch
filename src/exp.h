@@ -75,6 +75,14 @@ ua_meas ua_exp_measure(ua_emit_fn emit, void *ctx, ua_regs *regs, int level, int
 /* Cycles per iteration, or NaN if the measurement was not clean. */
 double ua_exp_cycles(ua_emit_fn emit, void *ctx, ua_regs *regs, int level);
 
+/* A sustained rate: `work` instances per (c2 - c1), where c1 is the cycles
+ * per iteration of the loop emit(ctx1) and c2 of emit(ctx2), which has twice
+ * as many instances (`work` more).  Both in the fastest steady state,
+ * measured again when the loops disagree about their own cost (measure.h);
+ * if they keep disagreeing, the longer loop's own rate.  NaN if a
+ * measurement is not clean. */
+double ua_exp_rate(ua_emit_fn emit, void *ctx1, void *ctx2, double work, int level);
+
 /*
  * Compare two loops under identical conditions.  Runs of A and B alternate,
  * so both see the same clock frequency and the same memory traffic, and a

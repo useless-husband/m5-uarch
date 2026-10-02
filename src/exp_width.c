@@ -61,17 +61,8 @@ static void emit_mix(void *p)
  * of w, by differencing two loop lengths. */
 static double mix_ipc(gen_fn gen, unsigned r, unsigned w, int level)
 {
-    ua_regs regs;
-    mix_ctx c = {gen, r, w, 0};
-    double cyc[2];
-    for (int k = 0; k < 2; k++) {
-        c.groups = (k + 1) * (480 / w);
-        ua_regs_default(&regs);
-        cyc[k] = ua_exp_cycles(emit_mix, &c, &regs, level);
-    }
-    if (isnan(cyc[0]) || isnan(cyc[1]) || cyc[1] <= cyc[0])
-        return NAN;
-    return (double)((480 / w) * w) / (cyc[1] - cyc[0]);
+    mix_ctx c1 = {gen, r, w, 480 / w}, c2 = {gen, r, w, 2 * (480 / w)};
+    return ua_exp_rate(emit_mix, &c1, &c2, (double)((480 / w) * w), level);
 }
 
 static void units(ua_exp_list *out, int level, unsigned w, const char *id, const char *title,
@@ -114,17 +105,10 @@ void ua_exp_width(int level, ua_exp_list *out)
     /* Width from NOPs.  (Two lengths again, so the loop branch cancels.) */
     ua_exp_result *r = ua_exp_add(out, "width", "Pipeline width (sustained NOPs per cycle)",
                                   "per cycle", level);
-    ua_regs regs;
-    double cyc[2];
-    static const unsigned lens[2] = {600, 1200};
-    for (int k = 0; k < 2; k++) {
-        mix_ctx c = {g_add_imm, 0, 1, lens[k]};
-        ua_regs_default(&regs);
-        cyc[k] = ua_exp_cycles(emit_mix, &c, &regs, level);
-    }
+    mix_ctx c1 = {g_add_imm, 0, 1, 600}, c2 = {g_add_imm, 0, 1, 1200};
+    double ipc = ua_exp_rate(emit_mix, &c1, &c2, 600.0, level);
     unsigned w = 8;
-    if (!isnan(cyc[0]) && !isnan(cyc[1]) && cyc[1] > cyc[0]) {
-        double ipc = 600.0 / (cyc[1] - cyc[0]);
+    if (!isnan(ipc)) {
         r->status = UA_EXP_OK;
         r->value = ipc;
         r->lo = r->hi = ipc;

@@ -127,6 +127,8 @@ typedef struct {
     double tp_cpi;       /* cycles per instruction at steady state           */
     double tp_ipc;       /* instructions per cycle                           */
     int tp_chain_bound;  /* throughput limited by the block's own chains     */
+    int tp_whole_loop;   /* the two loop lengths kept disagreeing: rate of
+                            the longer loop alone, loop branch included    */
     int n_lat;
     ua_lat_result lat[UA_MAX_CHAINS];
 } ua_insn_result;

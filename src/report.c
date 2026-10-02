@@ -250,7 +250,8 @@ void ua_report_print_insn(const ua_insn_result *r, FILE *f)
         if (isnan(r->tp_ipc))
             fprintf(f, " tp %-9s", ua_status_name(r->tp_raw.status));
         else
-            fprintf(f, " tp %5.2f/c%s", r->tp_ipc, r->tp_chain_bound ? "*" : " ");
+            fprintf(f, " tp %5.2f/c%s", r->tp_ipc,
+                    r->tp_chain_bound ? "*" : r->tp_whole_loop ? "~" : " ");
     } else {
         fprintf(f, "             ");
     }

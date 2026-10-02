@@ -6,6 +6,7 @@
 #include "counters.h"
 #include "enc.h"
 #include "exp.h"
+#include "insn.h"
 #include "jit.h"
 #include "measure.h"
 #include "sysinfo.h"
@@ -20,14 +21,55 @@ static const void *chain(unsigned adds)
     return ua_jit_loop_close(NULL, 0);
 }
 
+/* The loop-cost rule needs no counters: numbers from the M5 P-core. */
+static void test_loop_cost(void)
+{
+    CHECK(ua_loop_cost_plausible(33.0, 65.2));    /* imm moves, both fast: 0.8 cycles  */
+    CHECK(ua_loop_cost_plausible(48.25, 96.43));  /* adds: 0.07                        */
+    CHECK(!ua_loop_cost_plausible(36.2, 65.2));   /* short loop slow, long fast: +7.2  */
+    CHECK(!ua_loop_cost_plausible(33.0, 72.3));   /* short fast, long slow: -6.3       */
+    CHECK(!ua_loop_cost_plausible(88.5, 168.0));  /* vector state: +9                  */
+    CHECK(ua_loop_cost_plausible(3200.0, 6390.0)); /* long body: 1 % of it is allowed  */
+    CHECK(!ua_loop_cost_plausible(3200.0, 6460.0));
+}
+
+/* Regression: on the M5 P-core, x-register immediate moves measured up to
+ * 13 per cycle with a NOP rate of 10, because runs in two steady states were
+ * mixed.  No instruction may exceed the NOP rate (6 % slack, as the anchor). */
+static void test_no_rate_above_width(int level)
+{
+    const ua_insn *nop = ua_insn_find("nop");
+    static const char *const moves[] = {"mov_x_imm48", "mov_x_bitmask64", "mov_x_imm16"};
+    if (!nop)
+        return;
+    ua_insn_result w;
+    ua_insn_run(nop, level, NULL, &w);
+    if (isnan(w.tp_ipc))
+        return;
+    for (int rep = 0; rep < 2; rep++)
+        for (size_t i = 0; i < sizeof moves / sizeof moves[0]; i++) {
+            const ua_insn *in = ua_insn_find(moves[i]);
+            ua_insn_result r;
+            CHECK(in != NULL);
+            if (!in)
+                continue;
+            ua_insn_run(in, level, NULL, &r);
+            if (!isnan(r.tp_ipc) && r.tp_ipc > w.tp_ipc * 1.06)
+                fprintf(stderr, "level %d: %s at %.3f per cycle, NOPs at %.3f\n", level,
+                        moves[i], r.tp_ipc, w.tp_ipc);
+            CHECK(isnan(r.tp_ipc) || r.tp_ipc <= w.tp_ipc * 1.06);
+        }
+}
+
 int main(void)
 {
+    test_loop_cost();
     ua_sysinfo si;
     ua_sysinfo_get(&si);
     if (ua_jit_init() != 0 || ua_counters_init(UA_CTR_NONE) == UA_CTR_NONE) {
         printf("test_measure: SKIP (no unprivileged cycle counter%s)\n",
                si.is_vm ? "; this is a virtual machine" : "");
-        return 77;
+        return g_failures ? test_finish("test_measure") : 77;
     }
     ua_measure_init();
     CHECK(ua_counters_nlevels() >= 1);
@@ -117,6 +159,8 @@ int main(void)
         }
         if (have)
             CHECK(best > -200 && best < 20000); /* exact unless an interrupt landed */
+
+        test_no_rate_above_width(level);
     }
     CHECK(ua_measure(NULL, NULL, NULL).status == UA_BADCOUNT);
     if (!measured) {

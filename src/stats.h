@@ -50,6 +50,14 @@ typedef struct {
 
 ua_step ua_find_step(const double *x, const double *y, size_t n, double min_ratio);
 
+/* The fastest steady state in a set of run times: the smallest value that at
+ * least three values reach within a factor (1 + tol), and every value from
+ * there up to that factor above it.  Writes their positions to `idx` (room
+ * for n) and returns how many there are.  A lone value below the state (an
+ * outlier) is not part of it.  If no three values agree that closely, there
+ * is no recognisable state and all values are taken. */
+size_t ua_fastest_state(const double *a, size_t n, double tol, size_t *idx);
+
 /* Round to the nearest multiple of `q` (q > 0). */
 double ua_round_to(double v, double q);
 

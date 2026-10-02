@@ -13,6 +13,18 @@
  *
  * What is left is summarised by the median, with the minimum and the
  * inter-quartile spread reported next to it.
+ *
+ * Steady states.  On the M5 P-core some loops do not run at one speed: each
+ * run settles in one of a few steady states (x-register immediate moves:
+ * about 9 or about 10 per cycle, drawn afresh at every entry; some vector
+ * loops: a slower state that lasts for milliseconds).  A median over runs
+ * in different states, differenced against another such median, is not the
+ * cost of anything.  With `fastest` set, only the runs in the fastest state
+ * that at least three runs reach are used (ua_fastest_state), sampling
+ * continues until both lengths have STATE_MIN such runs, and the fixed cost
+ * per run implied by the two lengths must be plausible (a mix of states
+ * shows up there as thousands of cycles too many or too few); otherwise the
+ * result is noisy.
  */
 #ifndef UA_MEASURE_H
 #define UA_MEASURE_H
@@ -44,6 +56,9 @@ typedef struct {
     uint32_t carry;         /* bit i: x[i] continues from its value at the end
                                of the previous run (pointer chases that must
                                not revisit what is already cached)            */
+    int fastest;            /* throughput: use only the runs in the fastest
+                               steady state, and require the two lengths to
+                               agree on it (see "Steady states" below)        */
 } ua_mopts;
 
 typedef struct {
@@ -55,6 +70,7 @@ typedef struct {
     double ghz;      /* cycles per nanosecond observed during the clean runs   */
     double ns;       /* nanoseconds per iteration, median-based (wall clock)   */
     double ns_min;   /* nanoseconds per iteration, minimum-based               */
+    double fixed;    /* fixed cost per run implied by the two lengths, cycles  */
     int level;       /* performance level the clean runs executed on           */
     int clean;       /* clean runs at 2n                                       */
     int runs;        /* pairs attempted                                        */
@@ -77,6 +93,15 @@ int ua_level_request(int level);
 void ua_measure_init(void);
 
 ua_meas ua_measure(const void *code, ua_regs *regs, const ua_mopts *opts);
+
+/* Throughput is the difference between a loop with k copies of a block and
+ * one with 2k copies, measured separately.  Each loop's own cost per
+ * iteration (branch, fetch bubble) is then 2*c1 - c2, a cycle or two at
+ * most.  When the two loops ran in different steady states it comes out at
+ * several cycles either way; callers measure again, and report noise if it
+ * persists. */
+int ua_loop_cost_plausible(double c1, double c2);
+#define UA_TP_ATTEMPTS 3
 
 /* Run `code` once under the fault guard.  Returns 0, or the signal number. */
 int ua_run_guarded(const void *code, ua_regs *regs, uint64_t iters);

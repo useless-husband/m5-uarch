@@ -152,7 +152,7 @@ void ua_init_apply(ua_regs *regs, const ua_init *init, size_t n)
 static void scratch_reset(void) { memset(ua_scratch_base(), 0, UA_SCRATCH_BYTES); }
 
 static ua_meas run_block(const ua_insn *in, uint32_t off, size_t n, unsigned reps,
-                         const ua_init *init, size_t n_init, int level)
+                         const ua_init *init, size_t n_init, int level, int fastest)
 {
     ua_regs regs;
     uint64_t per_iter = 0;
@@ -164,6 +164,7 @@ static ua_meas run_block(const ua_insn *in, uint32_t off, size_t n, unsigned rep
     ua_mopts o = ua_mopts_default(level);
     o.expect_ins = per_iter;
     o.flip_nzcv = (in->flags & UA_INSN_FLIP) != 0;
+    o.fastest = fastest;
     return ua_measure(code, &regs, &o);
 }
 
@@ -191,8 +192,8 @@ void ua_helpers_measure(int level, ua_helpers *h)
             continue;
         }
         const ua_chain *ch = &in->chains[0];
-        ua_meas m1 = run_block(in, ch->off, ch->n, LAT_STEPS, ch->init, ch->n_init, level);
-        ua_meas m3 = run_block(in, ch->off, ch->n, 3 * LAT_STEPS, ch->init, ch->n_init, level);
+        ua_meas m1 = run_block(in, ch->off, ch->n, LAT_STEPS, ch->init, ch->n_init, level, 0);
+        ua_meas m3 = run_block(in, ch->off, ch->n, 3 * LAT_STEPS, ch->init, ch->n_init, level, 0);
         if (m1.status == UA_OK && m3.status == UA_OK)
             *dst = (m3.cyc - m1.cyc) / (2.0 * LAT_STEPS * (double)ch->steps);
         else
@@ -228,27 +229,43 @@ void ua_insn_run(const ua_insn *in, int level, const ua_helpers *h, ua_insn_resu
 
     if (in->tp_n) {
         /* Two loop lengths: the difference is the cost of `reps` more copies
-         * of the block, free of the loop branch and its fetch bubble. */
+         * of the block, free of the loop branch and its fetch bubble.  Both
+         * from the fastest steady state (measure.h).  If the two loops still
+         * disagree about what the loop itself costs, they ran in different
+         * states: measure both again.  If they keep disagreeing, the cost
+         * per copy depends on the loop length (branch-dense code, some vector
+         * and atomic loops); then the result is the longer loop's own rate,
+         * loop branch included, which is a rate the core really sustained. */
         unsigned reps = (TP_MIN_INSTANCES + in->tp_inst - 1) / in->tp_inst;
-        ua_meas m1 = run_block(in, in->tp_off, in->tp_n, reps, in->tp_init, in->tp_n_init, level);
-        if (m1.status == UA_FAULT) {
-            out->tp_raw = m1;
-            out->supported = 0;
-            out->fault_sig = m1.fault_sig;
-            return;
+        ua_meas m1, m2;
+        int plausible = 0;
+        for (int attempt = 0; attempt < UA_TP_ATTEMPTS && !plausible; attempt++) {
+            m1 = run_block(in, in->tp_off, in->tp_n, reps, in->tp_init, in->tp_n_init, level, 1);
+            if (m1.status == UA_FAULT) {
+                out->tp_raw = m1;
+                out->supported = 0;
+                out->fault_sig = m1.fault_sig;
+                return;
+            }
+            m2 = run_block(in, in->tp_off, in->tp_n, 2 * reps, in->tp_init, in->tp_n_init, level,
+                           1);
+            plausible = m1.status == UA_OK && m2.status == UA_OK &&
+                        ua_loop_cost_plausible(m1.cyc, m2.cyc);
         }
-        ua_meas m2 =
-            run_block(in, in->tp_off, in->tp_n, 2 * reps, in->tp_init, in->tp_n_init, level);
         out->tp_raw = m2;
         out->have_tp = 1;
         out->tp_cpi = out->tp_ipc = NAN;
-        if (m1.status == UA_OK && m2.status == UA_OK && m2.cyc > m1.cyc) {
+        if (plausible && m2.cyc > m1.cyc) {
             out->tp_cpi = (m2.cyc - m1.cyc) / ((double)in->tp_inst * reps);
-            out->tp_ipc = 1.0 / out->tp_cpi;
             out->tp_raw.spread = (m1.spread * m1.cyc + m2.spread * m2.cyc) / (m2.cyc - m1.cyc);
-        } else if (m2.status == UA_OK) {
-            out->tp_raw.status = m1.status != UA_OK ? m1.status : UA_NOISY;
+        } else if (m2.status == UA_OK && m2.cyc > 0) {
+            out->tp_cpi = m2.cyc / ((double)in->tp_inst * 2 * reps);
+            out->tp_whole_loop = 1;
         }
+        if (!isnan(out->tp_cpi))
+            out->tp_ipc = 1.0 / out->tp_cpi;
+        else if (m2.status == UA_OK)
+            out->tp_raw.status = m1.status != UA_OK ? m1.status : UA_NOISY;
     }
 
     double rw_lat = NAN;
@@ -257,7 +274,7 @@ void ua_insn_run(const ua_insn *in, int level, const ua_helpers *h, ua_insn_resu
         ua_lat_result *lr = &out->lat[out->n_lat++];
         /* Two chain lengths again: whatever happens once per loop iteration
          * (the branch, a bypass that does not span the loop edge) cancels. */
-        ua_meas m1 = run_block(in, ch->off, ch->n, LAT_STEPS, ch->init, ch->n_init, level);
+        ua_meas m1 = run_block(in, ch->off, ch->n, LAT_STEPS, ch->init, ch->n_init, level, 0);
         lr->raw = m1;
         lr->lat = NAN;
         if (m1.status == UA_FAULT) {
@@ -265,7 +282,7 @@ void ua_insn_run(const ua_insn *in, int level, const ua_helpers *h, ua_insn_resu
             out->fault_sig = m1.fault_sig;
             return;
         }
-        ua_meas m3 = run_block(in, ch->off, ch->n, 3 * LAT_STEPS, ch->init, ch->n_init, level);
+        ua_meas m3 = run_block(in, ch->off, ch->n, 3 * LAT_STEPS, ch->init, ch->n_init, level, 0);
         lr->raw = m3;
         if (m1.status != UA_OK || m3.status != UA_OK) {
             if (m3.status == UA_OK)

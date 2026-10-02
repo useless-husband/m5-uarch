@@ -214,8 +214,9 @@ static void run_insns(ua_report *rep, const options *opt, int level)
     ua_helpers_measure(level, h);
     if (!opt->quiet)
         printf("\n# %s-core instructions   (tp = instances per cycle, * = limited by its own "
-               "dependency chain; A>B = latency in cycles from operand A to B, rt = round trip "
-               "through a helper)\n",
+               "dependency chain, ~ = rate of the longer loop because the two lengths disagree; "
+               "A>B = latency in cycles from operand A to B, rt = round trip through a "
+               "helper)\n",
                label);
     const char *group = "";
     double ghz_sum = 0;
