@@ -1,0 +1,31 @@
+name: Submit results for a chip
+description: Paste what `make submit` copied. A bot checks the data and prepares a pull request.
+title: "Submission: "
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Run `make submit` in a clone of this repository on your Mac. It measures (or reuses your last measurement), copies a block of text to the clipboard and opens this page. Paste the block below, unchanged.
+
+        The block holds the chip name, Mac model identifier, macOS version, tool version and the measurements, nothing else: no host name, user name, serial number, UUIDs or file paths. The exact list is in [CONTRIBUTING.md](https://github.com/useless-husband/m5-uarch/blob/main/CONTRIBUTING.md#what-is-sent), and `build/submission/submission.json` shows the same data readably.
+  - type: textarea
+    id: submission
+    attributes:
+      label: Submission
+      description: From -----BEGIN M5-UARCH SUBMISSION----- to -----END M5-UARCH SUBMISSION-----.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      description: What else was running, plugged in or on battery, anything that looked wrong. The bot ignores this; the maintainer reads it.
+  - type: checkboxes
+    id: licence
+    attributes:
+      label: Licence
+      options:
+        - label: I measured this on my own Mac, and I agree that the data is published in this repository under its MIT licence.
+          required: true

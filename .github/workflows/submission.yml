@@ -1,0 +1,67 @@
+# Checks a submission pasted into an issue (CONTRIBUTING.md) and, when it
+# passes, prepares a pull request with the data for the maintainer to merge.
+#
+# Security (docs/DESIGN.md, "Threat model"):
+# - The issue body is untrusted. It is never interpolated into a script: the
+#   validator reads it from the event file ($GITHUB_EVENT_PATH) as data, and
+#   nothing submitted is ever executed.
+# - The job that reads it has a read-only token and no stored credentials.
+#   Only the second job can write, and it handles files that the validator
+#   from main generated; it pushes a submission/issue-N branch, never main.
+# - Third-party actions are pinned to full commit SHAs.
+name: Submission check
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions: {}
+
+concurrency:
+  group: submission-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Runs when the issue is opened or its text changes (not on title edits).
+    if: >-
+      github.event.issue.state == 'open' &&
+      (github.event.action == 'opened' || github.event.changes.body) &&
+      (contains(github.event.issue.labels.*.name, 'submission') ||
+       contains(github.event.issue.body, '-----BEGIN M5-UARCH SUBMISSION-----'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check the submission (reads the issue from the event file, as data)
+        run: python3 tools/uarch_validate.py issue --event "$GITHUB_EVENT_PATH" --results results --out "$RUNNER_TEMP/check"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: submission-check
+          path: ${{ runner.temp }}/check/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # push the submission/issue-N branch (never main)
+      pull-requests: write  # open the pull request
+      issues: write         # comment and label
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: submission-check
+          path: ${{ runner.temp }}/check
+      - name: Comment, label and prepare the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: CHECK="$RUNNER_TEMP/check" sh .github/scripts/publish-submission.sh

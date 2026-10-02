@@ -14,11 +14,14 @@ jobs:
     # machines that expose no cycle counters, so the measurement tests print
     # why and skip (exit status 77); everything else runs for real: the
     # generator, the assembler-encoded instruction table, the encoder
-    # cross-check, generated code executed under the fault guard.
+    # cross-check, generated code executed under the fault guard, and the
+    # submission, validation and site tools.
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
       - name: Toolchain
@@ -35,7 +38,24 @@ jobs:
         run: make test
       - name: Lint
         run: make lint
-      - name: Site data matches the committed results
+      - name: Every committed dataset passes the checks
+        run: make validate
+      - name: The site builds from results/
         run: |
           make site
-          git diff --exit-code site/data.js
+          node --check site/app.js
+
+  bot-scripts:
+    # The submission and pull-request bots run on ubuntu-latest with its own
+    # python3; test the scripts there too, end to end without GitHub.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Python version the bots use
+        run: python3 --version
+      - name: Unit tests
+        run: python3 -W error -m unittest -q tests/test_submission.py tests/test_validate.py tests/test_site.py tests/test_workflows.py
+      - name: End to end (issue -> check -> branch and pull request, with a stand-in gh)
+        run: sh tests/e2e_submission.sh

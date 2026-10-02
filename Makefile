@@ -3,8 +3,11 @@
 #   make            build build/uarch
 #   make test       unit, encoder cross-check and smoke tests
 #   make lint       strict warnings as errors + clang static analyser
-#   make measure    measure this machine and write results/<chip>/
-#   make site       regenerate site/ from results/
+#   make measure    measure this machine; results in results/local/<chip>/ (untracked)
+#   make submit     pack the measurement for a GitHub issue (measures first if needed)
+#   make submit-pr  the same, as files under results/<chip>/ for a pull request
+#   make validate   re-check every committed dataset (what the bots check)
+#   make site       build site/data.js and site/data/ from results/
 #   make bench      the README's headline numbers, straight from the tool
 
 CC      ?= cc
@@ -24,7 +27,7 @@ APP_SRC := src/main.c
 APP_OBJ := $(APP_SRC:src/%.c=$(BUILD)/%.o)
 HDRS    := $(wildcard src/*.h)
 
-.PHONY: all test lint measure site bench clean
+.PHONY: all test lint measure submit submit-pr validate site bench clean
 all: $(BUILD)/uarch
 
 $(BUILD):
@@ -89,7 +92,9 @@ test: all $(TESTS)
 	done; \
 	UARCH_COUNTERS=none $(BUILD)/test_measure >/dev/null; rc=$$?; \
 	if [ $$rc -ne 77 ]; then echo "test_measure without counters: exit $$rc, want 77 (skip)"; fail=1; fi; \
-	$(PYTHON) -W error -m unittest -q tests/test_tools.py || fail=1; \
+	$(PYTHON) -W error -m unittest -q tests/test_tools.py tests/test_submission.py \
+	    tests/test_validate.py tests/test_site.py tests/test_workflows.py || fail=1; \
+	PYTHON=$(PYTHON) sh tests/e2e_submission.sh || fail=1; \
 	UARCH=$(BUILD)/uarch PYTHON=$(PYTHON) sh tests/smoke.sh; rc=$$?; \
 	if [ $$rc -ne 0 ] && [ $$rc -ne 77 ]; then fail=1; fi; \
 	if [ $$fail -ne 0 ]; then echo "TESTS FAILED"; exit 1; fi; echo "all tests passed"
@@ -100,7 +105,8 @@ lint:
 	$(MAKE) BUILD=$(BUILD)/lint CFLAGS="-O2 -Werror" all $(TESTS:$(BUILD)/%=$(BUILD)/lint/%)
 	$(CC) --analyze -Xanalyzer -analyzer-output=text -Isrc $(LIB_SRC) $(APP_SRC) 2>&1 | \
 	    (! grep -E "warning|error") || (echo "static analyser reported problems" && exit 1)
-	$(PYTHON) -W error -m py_compile tools/gen_insns.py tools/uarch_results.py tests/test_tools.py
+	$(PYTHON) -W error -m py_compile tools/*.py tests/*.py
+	sh -n tests/e2e_submission.sh .github/scripts/publish-submission.sh
 
 # The README's headline numbers, straight from the tool.
 bench: $(BUILD)/uarch
@@ -111,7 +117,9 @@ bench: $(BUILD)/uarch
 # One command for any Apple Silicon Mac: `make measure`.
 CHIP ?= $(shell sysctl -n machdep.cpu.brand_string | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$$//')
 RUNS ?= 3
-RESULT := results/$(CHIP)/$(CHIP).json
+LOCAL := results/local/$(CHIP)
+RESULT := $(LOCAL)/$(CHIP).json
+SUBMISSION := $(BUILD)/submission
 
 measure: $(BUILD)/uarch
 	@$(BUILD)/uarch selftest
@@ -122,11 +130,27 @@ measure: $(BUILD)/uarch
 	done
 	$(PYTHON) tools/uarch_results.py merge $(BUILD)/runs/run-*.json -o $(RESULT)
 	$(PYTHON) tools/uarch_results.py check $(RESULT)
-	$(PYTHON) tools/uarch_results.py csv $(RESULT) -o results/$(CHIP)
-	@echo "Results are in results/$(CHIP)/. See CONTRIBUTING.md for how to share them."
+	$(PYTHON) tools/uarch_results.py csv $(RESULT) -o $(LOCAL)
+	@echo "Results are in $(LOCAL)/ (not tracked by git). 'make site' shows them next to"
+	@echo "the published chips; 'make submit' sends them (CONTRIBUTING.md)."
+
+# Reuse the runs in build/runs if they can be submitted as they are, else measure.
+submit: $(BUILD)/uarch
+	@$(PYTHON) tools/uarch_submit.py usable $(BUILD)/runs || \
+	    { echo "Measuring first ($(RUNS) runs, a minute or two) ..."; $(MAKE) --no-print-directory measure; }
+	@$(PYTHON) tools/uarch_submit.py pack $(BUILD)/runs/run-*.json -o $(SUBMISSION) --copy \
+	    $(if $(NO_OPEN),,--open)
+
+submit-pr: $(BUILD)/uarch
+	@$(PYTHON) tools/uarch_submit.py usable $(BUILD)/runs || \
+	    { echo "Measuring first ($(RUNS) runs, a minute or two) ..."; $(MAKE) --no-print-directory measure; }
+	@$(PYTHON) tools/uarch_submit.py pack $(BUILD)/runs/run-*.json -o $(SUBMISSION) --into results
+
+validate:
+	$(PYTHON) tools/uarch_validate.py tree results
 
 site:
-	$(PYTHON) tools/uarch_results.py site results/*/*.json -o site --reference reference
+	$(PYTHON) tools/uarch_results.py site results -o site --reference reference
 
 clean:
 	rm -rf $(BUILD)

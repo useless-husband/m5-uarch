@@ -1,0 +1,72 @@
+# Checks the dataset files that a pull request adds under results/, and
+# comments with the verdict.
+#
+# Security (docs/DESIGN.md, "Threat model"): pull_request_target runs this
+# file as it is on main, with a token that can comment, so it must never run
+# code from the pull request. It checks out main (the trusted validator),
+# fetches the pull request's commit, and only reads the changed dataset files
+# from it with `git show`, as data. The pull request's own code is built and
+# tested by ci.yml on the pull_request event, with a read-only token.
+name: Results check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths: ["results/**"]
+
+permissions: {}
+
+concurrency:
+  group: results-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Fetch the pull request's commit and its list of changed files (data only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | [.status, .filename] | @tsv' > "$RUNNER_TEMP/changes.tsv"
+          git fetch --no-tags --depth=1 origin "+refs/pull/$PR/head:refs/remotes/pr/head"
+      - name: Check the dataset files (validator from main; the files are only read)
+        run: python3 tools/uarch_validate.py pr --changes "$RUNNER_TEMP/changes.tsv" --git-ref refs/remotes/pr/head --results results --out "$RUNNER_TEMP/check"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: results-check
+          path: ${{ runner.temp }}/check/
+          retention-days: 7
+          if-no-files-found: error
+
+  comment:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: results-check
+          path: ${{ runner.temp }}/check
+      - name: Comment, and fail the check if the data was rejected
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body-file "$RUNNER_TEMP/check/comment.md"
+          if grep -q '"verdict": "rejected"' "$RUNNER_TEMP/check/verdict.json"; then
+            echo "The data was rejected; see the comment."
+            exit 1
+          fi
