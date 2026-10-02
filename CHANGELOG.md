@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.0 (2026-10-02)
+
+Results from any Apple Silicon Mac: submit, check automatically, compare.
+
+- `make submit` measures (or reuses the last measurement) and packs it into a block of text that
+  fits in one GitHub issue: about 42 000 characters for three runs, where the results file itself
+  is 370 KB. It sends the per-run values, not the statistics; the instruction text is regenerated
+  on the other side and proved identical by a digest. It copies the text, opens the issue form
+  and says what is not sent. `make submit-pr` writes the same data as two files under
+  `results/<chip>/` for a pull request.
+- Privacy: only allowlisted fields are sent. Host name, user name, serial number, UUIDs, file
+  paths, memory size and start times never are, and text that looks like them is refused.
+- Automatic checks (`tools/uarch_validate.py`) on issues (`submission.yml`), on pull requests
+  (`results-pr.yml`) and on every committed dataset (`make validate`, CI): format, tool version
+  and instruction-table digest, statistics recomputed from the per-run values, the anchors,
+  internal consistency, run quality, duplicates, and a per-value outlier test against the chip's
+  earlier datasets, calibrated on the M5's own runs. A bot comments accepted, flagged or rejected
+  with the reasons, and puts accepted data into a pull request; nothing reaches `main` without the
+  maintainer.
+- Workflows read untrusted input only as data, with least-privilege tokens, never check out
+  pull-request code under `pull_request_target`, and pin every action to a commit SHA (CI and
+  Pages too); `tests/test_workflows.py` checks these rules. `tests/e2e_submission.sh` runs the
+  workflows' commands on a sample issue without GitHub.
+- Site: a chip list with dataset counts and status, several chips side by side for structure and
+  instructions, the spread of each value across datasets, a source link for every dataset, and
+  what "verified" and "flagged" mean. The site data is built when Pages deploys instead of being
+  committed, and each chip's instruction table loads when the chip is shown.
+- `make measure` writes `results/local/<chip>/`, which git does not track.
+- The M5 dataset has its samples file (`results/apple-m5/apple-m5.samples.json`) and a source;
+  its results file is rebuilt from it and unchanged except that the memory size and the start
+  times of the runs are no longer stored.
+- `test_measure`: the instruction-count check takes the best of five tries; a single try failed
+  once on a busy machine.
+- Tool version 0.2.0. The measurement code is unchanged, and data from 0.1.1 is accepted.
+
 ## 0.1.1 (2026-10-01)
 
 Fixes found in review, and the M5 data measured again with them.
