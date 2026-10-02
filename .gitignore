@@ -5,3 +5,5 @@ build/
 __pycache__/
 *.pyc
 /results/local/
+site/data.js
+site/data/

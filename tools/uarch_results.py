@@ -3,7 +3,7 @@
 
     uarch_results.py merge run1.json run2.json ... -o results/apple-m5/apple-m5.json
     uarch_results.py csv   results/apple-m5/apple-m5.json -o results/apple-m5
-    uarch_results.py site  results/*/*.json -o site [--reference reference]
+    uarch_results.py site  results -o site [--reference reference]
     uarch_results.py check results/apple-m5/apple-m5.json
 
 `merge` takes several runs of the same machine and keeps, for every number,
@@ -378,19 +378,11 @@ def check(data: dict) -> list[str]:
 # Site
 
 
-def build_site(results: list[dict], outdir: Path, reference_dir: Path | None) -> Path:
-    refs = []
-    if reference_dir and reference_dir.is_dir():
-        for p in sorted(reference_dir.glob("*.json")):
-            refs.append(json.loads(p.read_text()))
-    payload = {"schema": "m5-uarch-site/1", "chips": results, "references": refs}
-    outdir.mkdir(parents=True, exist_ok=True)
-    data_js = outdir / "data.js"
-    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-    # "</" cannot end a script element early if it never appears.
-    body = body.replace("</", "<\\/")
-    data_js.write_text("window.UARCH_DATA=" + body + ";\n")
-    return data_js
+def build_site(roots: list[Path], outdir: Path, reference_dir: Path | None) -> list[Path]:
+    """site/data.js and site/data/<chip>.js; see uarch_site.py."""
+    import uarch_site  # imports this module, so not at the top
+
+    return uarch_site.build(roots, outdir, reference_dir)
 
 
 # --------------------------------------------------------------------------
@@ -405,7 +397,7 @@ def main(argv: list[str]) -> int:
     c = sub.add_parser("csv", help="write instructions.csv and structure.csv")
     c.add_argument("results", type=Path)
     c.add_argument("-o", "--outdir", type=Path, required=True)
-    s = sub.add_parser("site", help="write site/data.js from results files")
+    s = sub.add_parser("site", help="write the site's data files from results/")
     s.add_argument("results", nargs="+", type=Path)
     s.add_argument("-o", "--outdir", type=Path, required=True)
     s.add_argument("--reference", type=Path, default=None)
@@ -424,9 +416,8 @@ def main(argv: list[str]) -> int:
             for p in write_csv(load_results(args.results), args.outdir):
                 print(f"wrote {p}")
         elif args.cmd == "site":
-            p = build_site([load_results(r) for r in sorted(args.results)], args.outdir,
-                           args.reference)
-            print(f"wrote {p}")
+            for p in build_site(args.results, args.outdir, args.reference):
+                print(f"wrote {p}")
         elif args.cmd == "check":
             problems = check(load_results(args.results))
             for line in problems:

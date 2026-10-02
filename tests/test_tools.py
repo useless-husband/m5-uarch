@@ -302,11 +302,16 @@ class ResultsTests(unittest.TestCase):
             self.assertEqual(rows[0].split(",")[:5], ["name", "asm", "group", "extension", "core"])
             self.assertTrue(any("throughput" in r for r in rows))
             self.assertTrue(any(",latency,R0,W0,1.0," in r for r in rows))
-            js = u.build_site([m], out, None).read_text()
-            self.assertTrue(js.startswith("window.UARCH_DATA="))
+            chipdir = out / "results" / "apple-test"
+            chipdir.mkdir(parents=True)
+            (chipdir / "r.json").write_text(text)
+            written = u.build_site([out / "results"], out / "site", None)
+            js = written[0].read_text()
+            self.assertTrue(js.startswith("window.UARCH_INDEX="))
             self.assertNotIn("</", js)
-            payload = json.loads(js[len("window.UARCH_DATA="):].rstrip().rstrip(";"))
-            self.assertEqual(payload["chips"][0]["machine"]["brand"], "Apple Test")
+            payload = json.loads(js[len("window.UARCH_INDEX="):].rstrip().rstrip(";"))
+            self.assertEqual(payload["chips"][0]["brand"], "Apple Test")
+            self.assertEqual(written[1].name, "apple-test.js")
 
     def test_check_catches_broken_data(self):
         self.assertTrue(any("add_x_reg" in p for p in u.check(u.merge([raw_run(add_lat=1.4)]))))

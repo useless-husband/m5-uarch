@@ -1,11 +1,11 @@
 :root {
   --bg: #ffffff; --fg: #1b1f23; --muted: #5b6570; --line: #d8dde3; --head: #f3f5f7;
-  --accent: #0b5cad; --warn: #8a5300; --open: #f7f9fb;
+  --accent: #0b5cad; --warn: #8a5300; --open: #f7f9fb; --good: #1d6b33;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e3e7eb; --muted: #98a2ad; --line: #2c333a; --head: #1c2126;
-    --accent: #6cb0f5; --warn: #e0a640; --open: #191d21;
+    --accent: #6cb0f5; --warn: #e0a640; --open: #191d21; --good: #6cc285;
   }
 }
 * { box-sizing: border-box; }
@@ -33,6 +33,7 @@ tr.detail dt { color: var(--muted); }
 tr.detail dd { margin: 0; }
 .grouphead td { background: var(--head); font-weight: 600; }
 .dim { color: var(--muted); }
+.nowrap { white-space: nowrap; }
 .flag { color: var(--warn); }
 .range { color: var(--muted); font-size: 12px; }
 input[type=search], select {
@@ -45,6 +46,15 @@ svg.curve path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
 svg.curve circle { fill: var(--accent); }
 svg.curve line { stroke: var(--line); }
 svg.curve text { fill: var(--muted); font: 11px -apple-system, "Segoe UI", sans-serif; }
+th.pick, td.pick { width: 3.5em; }
+td.pick input { margin: 2px 0 0; }
+.status-verified, .status-accepted { color: var(--good); }
+.status-flagged { color: var(--warn); }
+.status-local, .status-single { color: var(--muted); }
+dl.terms { margin: 0; max-width: 86ch; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+dl.terms dt { font-weight: 600; }
+dl.terms dd { margin: 0; }
+ul.per { margin: 4px 0 8px; }
 footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px; }
 @media (max-width: 760px) {
   th, td { padding: 4px 6px; }
@@ -52,4 +62,6 @@ footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px;
   /* Wide tables scroll inside their own box instead of widening the page. */
   .tablewrap { overflow-x: auto; }
   thead th { position: static; }
+  dl.terms { grid-template-columns: 1fr; gap: 2px; }
+  dl.terms dd { margin-bottom: 8px; }
 }
